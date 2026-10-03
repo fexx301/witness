@@ -1,0 +1,15 @@
+{
+  "kind": "witness.mandate.v0",
+  "principal": "sandbox buyer (test identity)",
+  "agent": "witness-reference-shopper",
+  "scope": {
+    "max_amount_usd": "40.00",
+    "merchants": [
+      "Witness test merchant"
+    ],
+    "category": "coffee beans"
+  },
+  "valid_until": "2026-12-31",
+  "approved_at": "2026-10-02T01:53:54+00:00",
+  "sha256": "8771f25b0c9b5bd37771550ce13d5040353585c27447cf76307190759fb83a21"
+}

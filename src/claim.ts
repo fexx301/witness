@@ -1,0 +1,55 @@
+// Normalizes a PayPal dispute into the facts Witness reasons about.
+
+import { availableActions, type RawDispute } from "./paypal/disputes.js";
+
+export interface Claim {
+  disputeId: string;
+  reason: string;
+  stage: string;
+  status: string;
+  amount: { currency: string; value: number };
+  createdAt?: string;
+  responseDueAt?: string;
+  captureId?: string;
+  mandateHash?: string;
+  items: { name: string; description?: string }[];
+  buyerStatements: string[];
+  sellerStatements: string[];
+  actions: Set<string>;
+  acceptClaimTypes: string[];
+  outcome?: string;
+}
+
+export function normalizeDispute(dispute: RawDispute): Claim {
+  const transaction = dispute.disputed_transactions?.[0];
+  const buyerStatements = new Set<string>();
+  for (const item of transaction?.items ?? []) if (item.notes?.trim()) buyerStatements.add(item.notes.trim());
+  for (const message of dispute.messages ?? []) if (message.posted_by === "BUYER") buyerStatements.add(message.content.trim());
+  for (const evidence of dispute.evidences ?? [])
+    if (evidence.source === "SUBMITTED_BY_BUYER" && evidence.notes?.trim()) buyerStatements.add(evidence.notes.trim());
+
+  const sellerStatements = (dispute.messages ?? [])
+    .filter((message) => message.posted_by === "SELLER")
+    .map((message) => message.content.trim());
+
+  return {
+    disputeId: dispute.dispute_id,
+    reason: dispute.reason,
+    stage: dispute.dispute_life_cycle_stage,
+    status: dispute.status,
+    amount: { currency: dispute.dispute_amount.currency_code, value: Number(dispute.dispute_amount.value) },
+    createdAt: dispute.create_time,
+    responseDueAt: dispute.seller_response_due_date,
+    captureId: transaction?.seller_transaction_id,
+    mandateHash: transaction?.custom?.trim() || undefined,
+    items: (transaction?.items ?? []).map((item) => ({
+      name: item.item_name ?? "item",
+      description: item.item_description,
+    })),
+    buyerStatements: [...buyerStatements],
+    sellerStatements,
+    actions: availableActions(dispute),
+    acceptClaimTypes: dispute.allowed_response_options?.accept_claim?.accept_claim_types ?? [],
+    outcome: dispute.dispute_outcome?.outcome_code,
+  };
+}

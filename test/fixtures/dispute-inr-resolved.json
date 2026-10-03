@@ -1,0 +1,128 @@
+{
+  "dispute_id": "PP-R-SSN-10190213",
+  "create_time": "2026-10-02T06:54:46.018Z",
+  "update_time": "2026-10-02T07:32:13.526Z",
+  "disputed_transactions": [
+    {
+      "buyer_transaction_id": "9EM44395AA946914S",
+      "seller_transaction_id": "9E839789UG349854R",
+      "create_time": "2026-10-02T01:56:35.000Z",
+      "transaction_status": "COMPLETED",
+      "gross_amount": {
+        "currency_code": "USD",
+        "value": "25.00"
+      },
+      "invoice_number": "witness-510cabd13fd5",
+      "custom": "8771f25b0c9b5bd37771550ce13d5040353585c27447cf76307190759fb83a21",
+      "buyer": {
+        "email": "sb-eg5di53147258@personal.example.com",
+        "payer_id": "P69H9YR3CJHFL",
+        "name": "John Doe"
+      },
+      "seller": {
+        "email": "sb-4um6u53112993@business.example.com",
+        "merchant_id": "7ZCSEN3JAJJPG",
+        "name": "Test Store"
+      },
+      "items": [
+        {
+          "item_name": "Coffee beans 1kg (agent purchase under mandate)",
+          "item_description": "Coffee beans 1kg (agent purchase under mandate)",
+          "item_quantity": "1",
+          "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+          "item_type": "PRODUCT"
+        }
+      ],
+      "seller_protection_eligible": true,
+      "seller_protection_type": "EXPANDED_SELLER_PROTECTION"
+    }
+  ],
+  "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+  "status": "RESOLVED",
+  "dispute_amount": {
+    "currency_code": "USD",
+    "value": "25.00"
+  },
+  "dispute_state": "RESOLVED",
+  "dispute_outcome": {
+    "outcome_code": "RESOLVED_SELLER_FAVOUR",
+    "outcome_reason": "INELIGIBLE_BUYER_PROTECTION_POLICY"
+  },
+  "adjudications": [
+    {
+      "type": "DENY_BUYER",
+      "adjudication_time": "2026-10-02T07:29:53.181Z",
+      "reason": "INELIGIBLE_BUYER_PROTECTION_POLICY",
+      "dispute_life_cycle_stage": "CHARGEBACK"
+    }
+  ],
+  "fund_movements": [
+    {
+      "party": "RECEIVER",
+      "amount": {
+        "currency_code": "USD",
+        "value": "23.64"
+      },
+      "initiated_time": "2026-10-02T06:58:04.000Z",
+      "type": "DEBIT",
+      "reason": "HOLD_PLACED"
+    },
+    {
+      "party": "RECEIVER",
+      "amount": {
+        "currency_code": "USD",
+        "value": "23.64"
+      },
+      "initiated_time": "2026-10-02T07:31:04.000Z",
+      "type": "CREDIT",
+      "reason": "HOLD_RELEASED"
+    }
+  ],
+  "dispute_life_cycle_stage": "CHARGEBACK",
+  "dispute_channel": "INTERNAL",
+  "extensions": {
+    "merchant_contacted": false,
+    "buyer_contacted_time": "2026-10-02T06:54:45.118Z"
+  },
+  "evidences": [
+    {
+      "evidence_type": "CREATE",
+      "notes": "Package never arrived. Tracking hasn't updated in days.",
+      "source": "SUBMITTED_BY_BUYER",
+      "date": "2026-10-02T06:54:46.018Z",
+      "dispute_life_cycle_stage": "INQUIRY"
+    }
+  ],
+  "offer": {
+    "buyer_requested_amount": {
+      "currency_code": "USD",
+      "value": "25.00"
+    }
+  },
+  "refund_details": {
+    "allowed_refund_amount": {
+      "currency_code": "USD",
+      "value": "25.00"
+    }
+  },
+  "supporting_info": [
+    {
+      "notes": "Witness evidence. Agent-initiated purchase under a buyer mandate (attached mandate.json, sha256 8771f25b0c9b5bd3..., bound to the order's custom_id). Mandate: coffee beans, up to $40, this merchant, valid to 2026-12-31; this $25.00 order is inside it. Shipped USPS 9400111899223197428490, tracking attached to order 56268850E1823301N / capture 9E839789UG349854R.",
+      "documents": [
+        {
+          "name": "mandate.txt",
+          "url": "https://api-m.sandbox.paypal.com/v2/content/documents/DIS-010-11f1-be2e-cbf63780-bd7a-52b0c5e47068/files/1/download"
+        }
+      ],
+      "source": "SUBMITTED_BY_SELLER",
+      "provided_time": "2026-10-02T06:59:22.802Z"
+    }
+  ],
+  "links": [
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-SSN-10190213",
+      "rel": "self",
+      "method": "GET"
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+// PayPal Disputes API (v1). Only the fields Witness reads are typed.
+
+import type { PayPalClient } from "./client.js";
+
+export interface Money {
+  currency_code: string;
+  value: string;
+}
+
+export interface RawDispute {
+  dispute_id: string;
+  status: string;
+  reason: string;
+  dispute_life_cycle_stage: string;
+  dispute_channel?: string;
+  create_time?: string;
+  seller_response_due_date?: string;
+  dispute_amount: Money;
+  disputed_transactions?: {
+    seller_transaction_id?: string;
+    buyer_transaction_id?: string;
+    gross_amount?: Money;
+    custom?: string;
+    items?: { item_name?: string; item_description?: string; reason?: string; notes?: string }[];
+  }[];
+  messages?: { posted_by: string; time_posted: string; content: string }[];
+  evidences?: { evidence_type: string; source: string; notes?: string; date?: string; dispute_life_cycle_stage?: string }[];
+  allowed_response_options?: {
+    accept_claim?: { accept_claim_types?: string[] };
+    make_offer?: { offer_types?: string[] };
+  };
+  dispute_outcome?: { outcome_code?: string };
+  links?: { rel: string; href: string; method: string }[];
+}
+
+export interface DisputeSummary {
+  dispute_id: string;
+  status: string;
+  reason: string;
+  dispute_life_cycle_stage?: string;
+  dispute_amount: Money;
+  create_time?: string;
+}
+
+export interface EvidenceFile {
+  filename: string;
+  contentType: string;
+  data: string;
+}
+
+export class Disputes {
+  constructor(private readonly client: PayPalClient) {}
+
+  async list(pageSize = 20): Promise<DisputeSummary[]> {
+    const { data } = await this.client.request<{ items?: DisputeSummary[] }>(
+      "GET",
+      `/v1/customer/disputes?page_size=${pageSize}`,
+    );
+    return data.items ?? [];
+  }
+
+  async get(id: string): Promise<RawDispute> {
+    return (await this.client.request<RawDispute>("GET", `/v1/customer/disputes/${encodeURIComponent(id)}`)).data;
+  }
+
+  private files(files: EvidenceFile[]) {
+    return files.map((file, index) => ({ name: `file${index + 1}`, ...file }));
+  }
+
+  provideEvidence(id: string, notes: string, files: EvidenceFile[], evidenceType = "OTHER") {
+    return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/provide-evidence`, {
+      multipart: { input: { evidences: [{ evidence_type: evidenceType, notes }] }, files: this.files(files) },
+    });
+  }
+
+  provideSupportingInfo(id: string, notes: string, files: EvidenceFile[]) {
+    return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/provide-supporting-info`, {
+      multipart: { input: { notes }, files: this.files(files) },
+    });
+  }
+
+  sendMessage(id: string, message: string) {
+    return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/send-message`, {
+      multipart: { input: { message } },
+    });
+  }
+
+  acceptClaim(id: string, note: string, acceptClaimType = "REFUND") {
+    return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/accept-claim`, {
+      json: { note, accept_claim_type: acceptClaimType },
+    });
+  }
+
+  escalate(id: string, note: string) {
+    return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/escalate`, { json: { note } });
+  }
+}
+
+export function availableActions(dispute: RawDispute): Set<string> {
+  return new Set((dispute.links ?? []).map((link) => link.rel).filter((rel) => rel !== "self"));
+}

@@ -1,0 +1,81 @@
+{
+  "items": [
+    {
+      "dispute_id": "PP-R-PSV-10190214",
+      "create_time": "2026-10-02T07:15:40.000Z",
+      "update_time": "2026-10-02T07:38:13.000Z",
+      "disputed_transactions": [
+        {
+          "buyer_transaction_id": "0FT73980HJ849215V",
+          "buyer": {
+            "payer_id": "P69H9YR3CJHFL"
+          },
+          "seller": {
+            "merchant_id": "7ZCSEN3JAJJPG"
+          }
+        }
+      ],
+      "reason": "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
+      "status": "UNDER_REVIEW",
+      "dispute_state": "UNDER_PAYPAL_REVIEW",
+      "dispute_amount": {
+        "currency_code": "USD",
+        "value": "18.00"
+      },
+      "dispute_life_cycle_stage": "CHARGEBACK",
+      "dispute_channel": "INTERNAL",
+      "links": [
+        {
+          "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-PSV-10190214",
+          "rel": "self",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "dispute_id": "PP-R-SSN-10190213",
+      "create_time": "2026-10-02T06:54:46.000Z",
+      "update_time": "2026-10-02T07:32:13.000Z",
+      "disputed_transactions": [
+        {
+          "buyer_transaction_id": "9EM44395AA946914S",
+          "buyer": {
+            "payer_id": "P69H9YR3CJHFL"
+          },
+          "seller": {
+            "merchant_id": "7ZCSEN3JAJJPG"
+          }
+        }
+      ],
+      "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+      "status": "RESOLVED",
+      "dispute_state": "RESOLVED",
+      "dispute_amount": {
+        "currency_code": "USD",
+        "value": "25.00"
+      },
+      "dispute_life_cycle_stage": "CHARGEBACK",
+      "dispute_channel": "INTERNAL",
+      "outcome": "WON",
+      "links": [
+        {
+          "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-SSN-10190213",
+          "rel": "self",
+          "method": "GET"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes?page_size=10",
+      "rel": "self",
+      "method": "GET"
+    },
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes?page_size=10",
+      "rel": "first",
+      "method": "GET"
+    }
+  ]
+}

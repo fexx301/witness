@@ -1,0 +1,158 @@
+{
+  "dispute_id": "PP-R-PSV-10190214",
+  "create_time": "2026-10-02T07:15:40.132Z",
+  "update_time": "2026-10-02T07:38:13.721Z",
+  "disputed_transactions": [
+    {
+      "buyer_transaction_id": "0FT73980HJ849215V",
+      "seller_transaction_id": "61A930077R170051R",
+      "create_time": "2026-10-02T01:56:49.000Z",
+      "transaction_status": "HELD",
+      "gross_amount": {
+        "currency_code": "USD",
+        "value": "18.00"
+      },
+      "custom": "064737f8f6403ed7524da7dcc162ec50f5618712df372b8516d412ac911dd78d",
+      "buyer": {
+        "email": "sb-eg5di53147258@personal.example.com",
+        "payer_id": "P69H9YR3CJHFL",
+        "name": "John Doe"
+      },
+      "seller": {
+        "email": "sb-4um6u53112993@business.example.com",
+        "merchant_id": "7ZCSEN3JAJJPG",
+        "name": "Test Store"
+      },
+      "items": [
+        {
+          "item_name": "Coffee beans refill (agent, no buyer present)",
+          "item_description": "Coffee beans refill (agent, no buyer present)",
+          "item_quantity": "1",
+          "reason": "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
+          "notes": " I asked my shopping assistant to reorder my usual coffee beans, but this order is not what I authorized. The beans that arrived are a different blend and roast than described on the order, and I never approved this product.",
+          "item_type": "PRODUCT"
+        }
+      ],
+      "seller_protection_eligible": true,
+      "seller_protection_type": "EXPANDED_SELLER_PROTECTION"
+    }
+  ],
+  "reason": "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
+  "status": "UNDER_REVIEW",
+  "dispute_amount": {
+    "currency_code": "USD",
+    "value": "18.00"
+  },
+  "dispute_state": "UNDER_PAYPAL_REVIEW",
+  "fund_movements": [
+    {
+      "party": "RECEIVER",
+      "amount": {
+        "currency_code": "USD",
+        "value": "16.88"
+      },
+      "initiated_time": "2026-10-02T07:19:04.000Z",
+      "type": "DEBIT",
+      "reason": "HOLD_PLACED"
+    }
+  ],
+  "dispute_life_cycle_stage": "CHARGEBACK",
+  "dispute_channel": "INTERNAL",
+  "messages": [
+    {
+      "posted_by": "BUYER",
+      "time_posted": "2026-10-02T07:15:40.132Z",
+      "content": "My assistant placed this order; I only authorized my usual blend."
+    },
+    {
+      "posted_by": "SELLER",
+      "time_posted": "2026-10-02T07:19:43.929Z",
+      "content": "Witness: this $18.00 order was placed by the buyer's shopping agent under the buyer's mandate (coffee beans, up to $40, this merchant, valid to 2026-12-31; mandate sha256 8771f25b0c9b5bd3..., bound to the order's custom_id). The item shipped matches the listing. Happy to share the mandate record."
+    }
+  ],
+  "extensions": {
+    "merchant_contacted": false,
+    "buyer_contacted_time": "2026-10-02T07:15:39.373Z"
+  },
+  "evidences": [
+    {
+      "evidence_type": "CREATE",
+      "notes": "My assistant placed this order; I only authorized my usual blend.",
+      "source": "SUBMITTED_BY_BUYER",
+      "date": "2026-10-02T07:15:40.132Z",
+      "dispute_life_cycle_stage": "INQUIRY"
+    },
+    {
+      "evidence_type": "OTHER",
+      "notes": "Seller escalates: the purchase was made inside the buyer's agent mandate; requesting PayPal review of the mandate evidence.",
+      "source": "SUBMITTED_BY_SELLER",
+      "date": "2026-10-02T07:22:09.124Z",
+      "action_info": {
+        "action": "ESCALATE"
+      },
+      "dispute_life_cycle_stage": "INQUIRY"
+    },
+    {
+      "evidence_type": "OTHER",
+      "documents": [
+        {
+          "name": "mandate.txt",
+          "url": "https://api-m.sandbox.paypal.com/v2/content/documents/DIS-010-11f1-be32-6e4369b0-8ad2-a7c501e82a9d/files/1/download"
+        }
+      ],
+      "notes": "Witness evidence. This $18.00 order was placed by the buyer's shopping agent with no buyer present, under the buyer's mandate (attached; sha256 8771f25b0c9b5bd3..., bound to the order's custom_id): coffee beans, up to $40, this merchant, valid to 2026-12-31. The order is inside the mandate's amount, merchant, category and validity. The item shipped matches the listing.",
+      "source": "SUBMITTED_BY_SELLER",
+      "date": "2026-10-02T07:25:23.592Z",
+      "action_info": {
+        "action": "PROVIDE_EVIDENCE"
+      },
+      "dispute_life_cycle_stage": "CHARGEBACK"
+    }
+  ],
+  "offer": {
+    "buyer_requested_amount": {
+      "currency_code": "USD",
+      "value": "18.00"
+    }
+  },
+  "refund_details": {
+    "allowed_refund_amount": {
+      "currency_code": "USD",
+      "value": "18.00"
+    }
+  },
+  "allowed_response_options": {
+    "accept_claim": {
+      "accept_claim_types": [
+        "REFUND"
+      ]
+    }
+  },
+  "links": [
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-PSV-10190214",
+      "rel": "self",
+      "method": "GET"
+    },
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-PSV-10190214/accept-claim",
+      "rel": "accept_claim",
+      "method": "POST"
+    },
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-PSV-10190214/adjudicate",
+      "rel": "adjudicate",
+      "method": "POST"
+    },
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-PSV-10190214/require-evidence",
+      "rel": "require_evidence",
+      "method": "POST"
+    },
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-PSV-10190214/provide-supporting-info",
+      "rel": "provide_supporting_info",
+      "method": "POST"
+    }
+  ]
+}
