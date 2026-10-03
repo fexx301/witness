@@ -29,7 +29,10 @@ export interface Order {
 export interface Tracking {
   carrier?: string;
   trackingNumber: string;
+  // PayPal tracker status set by the merchant: SHIPPED, ON_HOLD, DELIVERED, CANCELLED.
   status: string;
+  // A carrier's own confirmation, when one is available (e.g. LOST, RETURNED_TO_SENDER).
+  carrierStatus?: string;
 }
 
 export class Orders {

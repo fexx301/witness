@@ -1,4 +1,5 @@
-// Maps a decision onto the actions PayPal currently allows on the dispute.
+// Maps a decision onto the responses PayPal currently allows on the dispute.
+// If PayPal does not offer the needed response right now, nothing is sent.
 
 import type { Claim } from "./claim.js";
 import type { Assessment, Decision } from "./decide.js";
@@ -10,28 +11,46 @@ export type Step =
   | { kind: "send_message"; message: string }
   | { kind: "escalate"; note: string }
   | { kind: "accept_claim"; note: string; acceptClaimType: string }
+  | { kind: "make_offer"; note: string; offerType: string; amount: { currency_code: string; value: string } }
   | { kind: "none"; reason: string };
 
+const clip = (text: string) => text.slice(0, 2000);
+
 export function planSteps(claim: Claim, decision: Decision, assessment: Assessment, files: EvidenceFile[]): Step[] {
-  const notes = assessment.evidence_notes.slice(0, 2000);
-  if (decision.action === "needs_human") return [{ kind: "none", reason: "Handed to a person: " + decision.why[0] }];
-
-  if (decision.action === "refund") {
-    if (claim.actions.has("accept_claim")) {
-      const type = claim.acceptClaimTypes.includes("REFUND") || claim.acceptClaimTypes.length === 0 ? "REFUND" : claim.acceptClaimTypes[0]!;
-      return [{ kind: "accept_claim", note: `Witness: ${decision.why[0] ?? "refunding the buyer"}`.slice(0, 2000), acceptClaimType: type }];
-    }
-    return [{ kind: "none", reason: "Refund decided, but PayPal does not offer accept_claim on this dispute right now." }];
+  const notes = clip(assessment.evidence_notes);
+  const reason = decision.why[0] ?? decision.action;
+  switch (decision.action) {
+    case "review":
+      return [{ kind: "none", reason: `For a person to review: ${reason}` }];
+    case "request_evidence":
+      return [{ kind: "none", reason: `Evidence needed before acting: ${decision.gaps.join(" | ") || reason}` }];
+    case "refund":
+      if (claim.actions.has("accept_claim") && (claim.acceptClaimTypes.length === 0 || claim.acceptClaimTypes.includes("REFUND")))
+        return [{ kind: "accept_claim", note: clip(`Witness: ${reason}`), acceptClaimType: "REFUND" }];
+      return [{ kind: "none", reason: "Refund decided, but PayPal does not offer a refund response on this dispute right now." }];
+    case "propose_return":
+      if (claim.actions.has("accept_claim") && claim.acceptClaimTypes.includes("REFUND_WITH_RETURN"))
+        return [{ kind: "accept_claim", note: clip(`Witness: ${reason}`), acceptClaimType: "REFUND_WITH_RETURN" }];
+      if (claim.actions.has("make_offer") && claim.offerTypes.includes("REFUND_WITH_RETURN"))
+        return [
+          {
+            kind: "make_offer",
+            note: clip(`Witness: ${reason}`),
+            offerType: "REFUND_WITH_RETURN",
+            amount: { currency_code: claim.amount.currency, value: claim.amount.value.toFixed(2) },
+          },
+        ];
+      return [{ kind: "none", reason: "Return proposed, but PayPal does not offer a return response on this dispute right now." }];
+    case "defend":
+      if (claim.actions.has("provide_evidence")) return [{ kind: "provide_evidence", notes, files }];
+      if (claim.actions.has("provide_supporting_info")) return [{ kind: "provide_supporting_info", notes, files }];
+      if (claim.stage === "INQUIRY" && claim.actions.has("send_message")) {
+        const steps: Step[] = [{ kind: "send_message", message: clip(assessment.buyer_message) }];
+        if (claim.actions.has("escalate")) steps.push({ kind: "escalate", note: notes });
+        return steps;
+      }
+      return [{ kind: "none", reason: `PayPal offers no seller response on this dispute right now (status ${claim.status}).` }];
   }
-
-  if (claim.actions.has("provide_evidence")) return [{ kind: "provide_evidence", notes, files }];
-  if (claim.actions.has("provide_supporting_info")) return [{ kind: "provide_supporting_info", notes, files }];
-  if (claim.stage === "INQUIRY" && claim.actions.has("send_message")) {
-    const steps: Step[] = [{ kind: "send_message", message: assessment.buyer_message.slice(0, 2000) }];
-    if (claim.actions.has("escalate")) steps.push({ kind: "escalate", note: notes.slice(0, 2000) });
-    return steps;
-  }
-  return [{ kind: "none", reason: `PayPal offers no seller response on this dispute right now (status ${claim.status}).` }];
 }
 
 export interface StepResult {
@@ -61,6 +80,9 @@ export async function executeSteps(disputes: Disputes, disputeId: string, steps:
           break;
         case "accept_claim":
           ({ debugId } = await disputes.acceptClaim(disputeId, step.note, step.acceptClaimType));
+          break;
+        case "make_offer":
+          ({ debugId } = await disputes.makeOffer(disputeId, step.note, step.offerType, step.amount));
           break;
         case "none":
           results.push({ step: step.kind, ok: true });

@@ -1,6 +1,8 @@
 // Buyer mandates: what a human authorized their shopping agent to buy.
 // A mandate's SHA-256 travels on every agent order as the PayPal custom_id, so a
-// dispute can be traced back to the exact authorization it was made under.
+// dispute can be traced back to the exact mandate version it was made under.
+// The hash proves the document is unchanged; it does not by itself prove who
+// accepted it. Acceptance, amendment and revocation are separate lifecycle events.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -16,6 +18,9 @@ export const MandateSchema = z.object({
     merchants: z.array(z.string()),
     category: z.string(),
   }),
+  // Item-level instructions ("whole bean, not ground"). Optional so that earlier
+  // mandates keep their hash: an absent field is hashed as absent.
+  instructions: z.array(z.string()).optional(),
   valid_until: z.string(),
   approved_at: z.string(),
   sha256: z.string().optional(),
@@ -30,6 +35,7 @@ export function canonicalJson(value: unknown): string {
   }
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(", ")}]`;
   const entries = Object.keys(value as Record<string, unknown>)
+    .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
     .sort()
     .map((key) => `${canonicalJson(key)}: ${canonicalJson((value as Record<string, unknown>)[key])}`);
   return `{${entries.join(", ")}}`;
@@ -40,14 +46,63 @@ export function mandateHash(mandate: Mandate): string {
   return createHash("sha256").update(canonicalJson(body)).digest("hex");
 }
 
+// --- lifecycle -----------------------------------------------------------------
+
+export const LifecycleEventSchema = z.object({
+  event: z.enum(["accepted", "superseded", "revoked", "imported"]),
+  at: z.string(),
+  // How acceptance was captured, e.g. "witness-wallet+paypal-approval:<order id>".
+  channel: z.string().optional(),
+  // For "superseded": the hash of the version that replaced this one.
+  by: z.string().optional(),
+});
+export type LifecycleEvent = z.infer<typeof LifecycleEventSchema>;
+
+export type MandateStatus = "in_force" | "not_yet_accepted" | "superseded" | "revoked" | "expired" | "unknown";
+
+// Which state the mandate was in at a given moment. Only Witness's own recorded
+// events count; a mandate's self-declared approved_at is not acceptance evidence.
+export function mandateStatusAt(mandate: Mandate, events: LifecycleEvent[], at: string | undefined): { status: MandateStatus; detail: string } {
+  if (!at) return { status: "unknown", detail: "Purchase time unavailable, so the mandate version in force cannot be established." };
+  const when = new Date(at).getTime();
+  const accepted = events.find((e) => e.event === "accepted");
+  if (!accepted) return { status: "unknown", detail: "No recorded acceptance of this mandate by the buyer." };
+  if (new Date(accepted.at).getTime() > when)
+    return { status: "not_yet_accepted", detail: `Accepted ${accepted.at}, after the purchase at ${at}.` };
+  const ended = events
+    .filter((e) => (e.event === "revoked" || e.event === "superseded") && new Date(e.at).getTime() <= when)
+    .sort((a, b) => a.at.localeCompare(b.at))[0];
+  if (ended?.event === "revoked") return { status: "revoked", detail: `Revoked ${ended.at}, before the purchase at ${at}.` };
+  if (ended?.event === "superseded")
+    return { status: "superseded", detail: `Replaced by ${ended.by?.slice(0, 12)}… at ${ended.at}, before the purchase at ${at}.` };
+  if (when > new Date(`${mandate.valid_until}T23:59:59Z`).getTime())
+    return { status: "expired", detail: `Expired ${mandate.valid_until}, before the purchase at ${at}.` };
+  return { status: "in_force", detail: `Accepted ${accepted.at}${accepted.channel ? ` via ${accepted.channel}` : ""}; in force at the purchase (${at}).` };
+}
+
 export class MandateStore {
   constructor(private readonly dir: string) {}
+
+  private lifecyclePath(hash: string) {
+    return join(this.dir, `${hash}.lifecycle.json`);
+  }
 
   save(mandate: Mandate): string {
     const hash = mandateHash(mandate);
     mkdirSync(this.dir, { recursive: true });
     writeFileSync(join(this.dir, `${hash}.json`), JSON.stringify({ ...mandate, sha256: hash }, null, 2) + "\n");
     return hash;
+  }
+
+  record(hash: string, event: LifecycleEvent): void {
+    const events = this.lifecycle(hash);
+    events.push(LifecycleEventSchema.parse(event));
+    writeFileSync(this.lifecyclePath(hash), JSON.stringify(events, null, 2) + "\n");
+  }
+
+  lifecycle(hash: string): LifecycleEvent[] {
+    const path = this.lifecyclePath(hash);
+    return existsSync(path) ? z.array(LifecycleEventSchema).parse(JSON.parse(readFileSync(path, "utf8"))) : [];
   }
 
   find(hash: string | undefined): Mandate | null {
@@ -58,9 +113,11 @@ export class MandateStore {
   }
 }
 
+// --- deterministic checks --------------------------------------------------------
+
 export type CheckStatus = "pass" | "fail" | "unknown";
 export interface MandateCheck {
-  rule: "integrity" | "amount" | "merchant" | "validity";
+  rule: "integrity" | "amount" | "merchant" | "in_force";
   status: CheckStatus;
   detail: string;
 }
@@ -72,9 +129,9 @@ export interface PurchaseFacts {
   purchasedAt?: string;
 }
 
-// Deterministic checks. Category fit ("is this the coffee they meant?") is a
-// judgement the AI makes; everything that can be checked exactly is checked here.
-export function checkMandate(mandate: Mandate, boundHash: string, purchase: PurchaseFacts): MandateCheck[] {
+// Everything checkable exactly is checked here. Whether the item matches the
+// buyer's instructions is a judgement the model makes, with sources.
+export function checkMandate(mandate: Mandate, boundHash: string, purchase: PurchaseFacts, events: LifecycleEvent[]): MandateCheck[] {
   const checks: MandateCheck[] = [];
   const actual = mandateHash(mandate);
   checks.push(
@@ -102,15 +159,11 @@ export function checkMandate(mandate: Mandate, boundHash: string, purchase: Purc
         },
   );
 
-  if (purchase.purchasedAt) {
-    const within = new Date(purchase.purchasedAt) <= new Date(`${mandate.valid_until}T23:59:59Z`);
-    checks.push(
-      within
-        ? { rule: "validity", status: "pass", detail: `Purchased ${purchase.purchasedAt.slice(0, 10)}, before the mandate expired on ${mandate.valid_until}.` }
-        : { rule: "validity", status: "fail", detail: `Purchased ${purchase.purchasedAt.slice(0, 10)}, after the mandate expired on ${mandate.valid_until}.` },
-    );
-  } else {
-    checks.push({ rule: "validity", status: "unknown", detail: "Purchase time unavailable." });
-  }
+  const state = mandateStatusAt(mandate, events, purchase.purchasedAt);
+  checks.push({
+    rule: "in_force",
+    status: state.status === "in_force" ? "pass" : state.status === "unknown" ? "unknown" : "fail",
+    detail: state.detail,
+  });
   return checks;
 }

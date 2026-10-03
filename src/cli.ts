@@ -7,6 +7,7 @@ import { MandateSchema, MandateStore } from "./mandate.js";
 import { PayPalClient, credentialsFromEnv } from "./paypal/client.js";
 import { Disputes } from "./paypal/disputes.js";
 import { Orders } from "./paypal/orders.js";
+import { loadPolicy } from "./policy.js";
 import { processDispute } from "./witness.js";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -36,7 +37,7 @@ async function main() {
       if (!arg) throw new Error("usage: witness run <dispute-id> [--execute]");
       const execute = flags.includes("--execute");
       const record = await processDispute(
-        { ...paypal(), mandates, assessor: new ClaudeAssessor(), runsDir: "data/runs" },
+        { ...paypal(), mandates, assessor: new ClaudeAssessor(), policy: loadPolicy("data/policy.json"), runsDir: "data/runs" },
         arg,
         { execute },
       );
@@ -48,8 +49,10 @@ async function main() {
     }
     case "import-mandate": {
       if (!arg) throw new Error("usage: witness import-mandate <file.json>");
+      // Importing is not acceptance: the buyer's acceptance must be recorded separately.
       const hash = mandates.save(MandateSchema.parse(JSON.parse(readFileSync(arg, "utf8"))));
-      console.log(`stored mandate ${hash}`);
+      mandates.record(hash, { event: "imported", at: new Date().toISOString() });
+      console.log(`stored mandate ${hash} (imported; buyer acceptance not recorded)`);
       return;
     }
     default:

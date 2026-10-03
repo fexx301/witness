@@ -17,6 +17,10 @@ export interface Claim {
   sellerStatements: string[];
   actions: Set<string>;
   acceptClaimTypes: string[];
+  offerTypes: string[];
+  // Evidence PayPal has asked the seller for. A request is a requirement to check,
+  // never a fact about the case and never an instruction to act.
+  evidenceRequests: { type: string; requestedAt?: string }[];
   outcome?: string;
 }
 
@@ -50,6 +54,10 @@ export function normalizeDispute(dispute: RawDispute): Claim {
     sellerStatements,
     actions: availableActions(dispute),
     acceptClaimTypes: dispute.allowed_response_options?.accept_claim?.accept_claim_types ?? [],
+    offerTypes: dispute.allowed_response_options?.make_offer?.offer_types ?? [],
+    evidenceRequests: (dispute.evidences ?? [])
+      .filter((evidence) => evidence.source === "REQUESTED_FROM_SELLER")
+      .map((evidence) => ({ type: evidence.evidence_type, requestedAt: evidence.date })),
     outcome: dispute.dispute_outcome?.outcome_code,
   };
 }

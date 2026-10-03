@@ -91,6 +91,12 @@ export class Disputes {
     });
   }
 
+  makeOffer(id: string, note: string, offerType: string, amount: Money) {
+    return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/make-offer`, {
+      json: { note, offer_type: offerType, offer_amount: amount },
+    });
+  }
+
   escalate(id: string, note: string) {
     return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/escalate`, { json: { note } });
   }
