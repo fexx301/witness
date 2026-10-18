@@ -126,7 +126,7 @@ export function comparisonFinding(
   comparison: Assessment["instruction_compliance"],
   facts: Record<string, unknown>,
 ): Finding {
-  const sources = comparison.sources.filter((id) => id in facts);
+  const sources = comparison.sources.filter((id) => supplied(facts, id));
   const cited = comparison.sources.length > 0 && sources.length === comparison.sources.length;
   const map: Record<typeof comparison.status, FindingStatus> = {
     match: "established",
@@ -143,11 +143,14 @@ export function comparisonFinding(
   return { key, status, summary, sources };
 }
 
+// A fact with no value (e.g. an order with no description) supports nothing.
+const supplied = (facts: Record<string, unknown>, id: string) => facts[id] !== undefined && facts[id] !== null;
+
 // A statement reaches PayPal or the buyer only if every id it cites is a supplied fact.
 export function checkStatements(statements: Statement[], facts: Record<string, unknown>): { sent: Statement[]; dropped: Statement[] } {
   const sent: Statement[] = [];
   const dropped: Statement[] = [];
-  for (const s of statements) (s.sources.length > 0 && s.sources.every((id) => id in facts) ? sent : dropped).push(s);
+  for (const s of statements) (s.sources.length > 0 && s.sources.every((id) => supplied(facts, id)) ? sent : dropped).push(s);
   return { sent, dropped };
 }
 

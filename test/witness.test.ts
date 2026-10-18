@@ -104,10 +104,11 @@ describe("findings", () => {
   });
 
   it("sends only statements whose every citation is a supplied fact", () => {
-    const facts = { "shipment_tracking[0]": { status: "DELIVERED" } };
+    const facts = { "shipment_tracking[0]": { status: "DELIVERED" }, "order.description": null };
     const { sent, dropped } = checkStatements(
       [
         { text: "Delivered on Oct 2.", sources: ["shipment_tracking[0]"] },
+        { text: "The listing promised whole bean.", sources: ["order.description"] },
         { text: "Signed for by the buyer.", sources: ["made.up[1]"] },
         { text: "A repeat customer.", sources: [] },
         { text: "Delivered and signed.", sources: ["shipment_tracking[0]", "made.up[2]"] },
@@ -115,7 +116,7 @@ describe("findings", () => {
       facts,
     );
     expect(sent.map((s) => s.text)).toEqual(["Delivered on Oct 2."]);
-    expect(dropped).toHaveLength(3);
+    expect(dropped).toHaveLength(4);
   });
 
   it("downgrades a model comparison that cites no supplied fact", () => {
