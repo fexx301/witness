@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
 import { RulesAssessor } from "../src/baseline.js";
+import { disputeRows, investigate, investigationView } from "../src/desk.js";
 import { toClaudeRequest } from "../src/studioLlm.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
@@ -318,6 +319,7 @@ function fakePayPal(trackerStatus: string | null = "SHIPPED") {
       dispute_outcome: undefined,
       links: [{ rel: "provide_evidence", href: "", method: "POST" }],
     },
+    "/v1/customer/disputes": { items: [{ dispute_id: "PP-R-SSN-10190213", status: "WAITING_FOR_SELLER_RESPONSE", reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED", dispute_amount: { currency_code: "USD", value: "25.00" } }] },
     "/v2/payments/captures/9E839789UG349854R": fixture("capture-inr.json"),
     "/v2/checkout/orders/56268850E1823301N": order,
   };
@@ -437,6 +439,21 @@ describe("pipeline", () => {
     routes["/v1/customer/disputes/PP-R-SSN-10190213"] = { ...dispute, dispute_life_cycle_stage: "ARBITRATION" };
     await expect(executeReviewed(deps(client, runsDir), reviewed)).rejects.toThrow(/changed since the review \(stage\)/);
     expect(writes).toHaveLength(0);
+  });
+
+  it("gives the desk one row per dispute, with Witness's and the baseline's decisions once investigated", async () => {
+    const { client } = fakePayPal("DELIVERED");
+    const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
+    const before = await disputeRows(deps(client, runsDir));
+    expect(before).toEqual([expect.objectContaining({ disputeId: "PP-R-SSN-10190213", reason: "Not received", amountUsd: 25, witnessDecision: "not investigated", sentToPayPal: "No" })]);
+    const { witness } = await investigate(deps(client, runsDir), "PP-R-SSN-10190213");
+    const [after] = await disputeRows(deps(client, runsDir));
+    expect(after).toMatchObject({ witnessDecision: "defend", baselineDecision: "defend", investigatedAt: witness.ranAt });
+    const view = investigationView(runsDir, "PP-R-SSN-10190213");
+    expect(view).toMatchObject({ reviewed: { ranAt: witness.ranAt }, baseline: { decision: { action: "defend" } }, executed: null });
+    await executeReviewed(deps(client, runsDir), witness);
+    expect(investigationView(runsDir, "PP-R-SSN-10190213", witness.ranAt)?.executed?.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
+    expect((await disputeRows(deps(client, runsDir)))[0]).toMatchObject({ sentToPayPal: "Yes" });
   });
 
   it("surfaces PayPal errors with their issue and stops dependent steps", async () => {
