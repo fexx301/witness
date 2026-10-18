@@ -268,16 +268,19 @@ describe("claim", () => {
   });
 
   it("reads tracking from the order", () => {
-    expect(trackingFromOrder(fixture<Order>("order-inr.json"))).toEqual([{ trackingNumber: "9400111899223197428490", status: "SHIPPED" }]);
+    expect(trackingFromOrder(fixture<Order>("order-inr.json"))).toEqual([
+      { trackerId: "9E839789UG349854R-9400111899223197428490", trackingNumber: "9400111899223197428490", status: "SHIPPED" },
+    ]);
   });
 });
 
-// A fake PayPal serving the recorded fixtures and recording every write.
-function fakePayPal(trackerStatus = "SHIPPED") {
+// A fake PayPal serving the recorded fixtures and recording every write. As in the real API,
+// the order's tracker says SHIPPED and only the v1 tracking API can say DELIVERED.
+function fakePayPal(trackerStatus: string | null = "SHIPPED") {
   const writes: { path: string; contentType: string }[] = [];
   const order = fixture<Order>("order-inr.json");
-  order.purchase_units[0]!.shipping!.trackers![0]!.status = trackerStatus;
   const routes: Record<string, unknown> = {
+    ...(trackerStatus ? { "/v1/shipping/trackers/9E839789UG349854R-9400111899223197428490": { status: trackerStatus, carrier: "USPS" } } : {}),
     "/v1/customer/disputes/PP-R-SSN-10190213": {
       ...fixture<RawDispute>("dispute-inr-resolved.json"),
       status: "WAITING_FOR_SELLER_RESPONSE",
@@ -327,6 +330,13 @@ describe("pipeline", () => {
     expect(record.decision.action).toBe("request_evidence");
     expect(record.evidencePack).toContain("[UNKNOWN] fulfilment");
     expect(writes).toHaveLength(0);
+  });
+
+  it("keeps the order's tracker status when the v1 tracking lookup fails", async () => {
+    const { client } = fakePayPal(null);
+    const record = await processDispute(deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), "PP-R-SSN-10190213", { execute: false });
+    expect(record.tracking[0]).toMatchObject({ status: "SHIPPED" });
+    expect(record.decision.action).toBe("request_evidence");
   });
 
   it("defends with evidence once delivery is recorded, and only when told to act", async () => {

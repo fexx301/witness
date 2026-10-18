@@ -28,6 +28,8 @@ export interface Order {
 
 export interface Tracking {
   carrier?: string;
+  // "<capture id>-<tracking number>", the id both the order and the v1 tracking API use.
+  trackerId?: string;
   trackingNumber: string;
   // PayPal tracker status set by the merchant: SHIPPED, ON_HOLD, DELIVERED, CANCELLED.
   status: string;
@@ -45,12 +47,18 @@ export class Orders {
   async order(id: string): Promise<Order> {
     return (await this.client.request<Order>("GET", `/v2/checkout/orders/${encodeURIComponent(id)}`)).data;
   }
+
+  // Orders v2 trackers can only say SHIPPED or CANCELLED; the v1 tracking API also records DELIVERED.
+  async tracker(id: string): Promise<{ status?: string; carrier?: string }> {
+    return (await this.client.request<{ status?: string; carrier?: string }>("GET", `/v1/shipping/trackers/${encodeURIComponent(id)}`)).data;
+  }
 }
 
 // PayPal tracker ids have the form "<capture id>-<tracking number>".
 export function trackingFromOrder(order: Order): Tracking[] {
   return order.purchase_units.flatMap((unit) =>
     (unit.shipping?.trackers ?? []).map((tracker) => ({
+      trackerId: tracker.id,
       trackingNumber: tracker.id.includes("-") ? tracker.id.slice(tracker.id.indexOf("-") + 1) : tracker.id,
       status: tracker.status,
     })),

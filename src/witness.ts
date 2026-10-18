@@ -54,7 +54,14 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
     const orderId = capture.supplementary_data?.related_ids?.order_id;
     if (orderId) {
       const order = await deps.orders.order(orderId);
-      tracking = trackingFromOrder(order);
+      // A failed v1 lookup keeps the order's own status rather than failing the investigation.
+      tracking = await Promise.all(
+        trackingFromOrder(order).map(async (t) => {
+          if (!t.trackerId) return t;
+          const v1 = await deps.orders.tracker(t.trackerId).catch(() => null);
+          return { ...t, status: v1?.status ?? t.status, ...(v1?.carrier ? { carrier: v1.carrier } : {}) };
+        }),
+      );
       orderDescription = order.purchase_units[0]?.description;
     }
   }
