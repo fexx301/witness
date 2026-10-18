@@ -2,7 +2,7 @@
 // If PayPal does not offer the needed response right now, nothing is sent.
 
 import type { Claim } from "./claim.js";
-import type { Assessment, Decision } from "./decide.js";
+import type { Decision, Writing } from "./decide.js";
 import type { Disputes, EvidenceFile } from "./paypal/disputes.js";
 
 export type Step =
@@ -16,8 +16,8 @@ export type Step =
 
 const clip = (text: string) => text.slice(0, 2000);
 
-export function planSteps(claim: Claim, decision: Decision, assessment: Assessment, files: EvidenceFile[]): Step[] {
-  const notes = clip(assessment.evidence_notes);
+export function planSteps(claim: Claim, decision: Decision, writing: Writing, files: EvidenceFile[]): Step[] {
+  const notes = clip(writing.evidenceNotes);
   const reason = decision.why[0] ?? decision.action;
   switch (decision.action) {
     case "review":
@@ -45,7 +45,7 @@ export function planSteps(claim: Claim, decision: Decision, assessment: Assessme
       if (claim.actions.has("provide_evidence")) return [{ kind: "provide_evidence", notes, files }];
       if (claim.actions.has("provide_supporting_info")) return [{ kind: "provide_supporting_info", notes, files }];
       if (claim.stage === "INQUIRY" && claim.actions.has("send_message")) {
-        const steps: Step[] = [{ kind: "send_message", message: clip(assessment.buyer_message) }];
+        const steps: Step[] = [{ kind: "send_message", message: clip(writing.buyerMessage) }];
         if (claim.actions.has("escalate")) steps.push({ kind: "escalate", note: notes });
         return steps;
       }

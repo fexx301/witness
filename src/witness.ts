@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { executeSteps, planSteps, type Step, type StepResult } from "./act.js";
 import { normalizeDispute, type Claim } from "./claim.js";
-import { claimTypeForReason, comparisonFinding, decide, factsFor, type Assessment, type Assessor, type Decision } from "./decide.js";
+import { claimTypeForReason, comparisonFinding, decide, factsFor, writingFor, type Assessment, type Assessor, type Decision, type Writing } from "./decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type EvidenceRequestStatus, type Finding } from "./findings.js";
 import { checkMandate, type Mandate, type MandateCheck, type MandateStore } from "./mandate.js";
 import { renderEvidencePack } from "./pack.js";
@@ -36,6 +36,7 @@ export interface RunRecord {
   requests: EvidenceRequestStatus[];
   assessment: Assessment;
   decision: Decision;
+  writing: Writing;
   steps: Step[];
   results: StepResult[];
   evidencePack: string;
@@ -84,13 +85,15 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
   if (assessment.claim_type !== claimType)
     decision.discrepancy = `PayPal's reason is ${claim.reason}, but Claude reads the buyer's words as ${assessment.claim_type}. Witness answers PayPal's stated reason.`;
 
+  const writing = writingFor(assessment, facts);
+
   const evidencePack = renderEvidencePack({
-    claim, mandate, checks, tracking, findings, requests, assessment, decision, policyName: deps.policy.name, generatedAt: now.toISOString(),
+    claim, mandate, checks, tracking, findings, requests, assessment, decision, writing, policyName: deps.policy.name, generatedAt: now.toISOString(),
   });
   const files: EvidenceFile[] = [{ filename: `witness-${claim.disputeId}.txt`, contentType: "text/plain", data: evidencePack }];
   if (mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(mandate, null, 2) });
 
-  const steps = planSteps(claim, decision, assessment, files);
+  const steps = planSteps(claim, decision, writing, files);
   const results = options.execute ? await executeSteps(deps.disputes, claim.disputeId, steps) : [];
 
   const record: RunRecord = {
@@ -107,6 +110,7 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
     requests,
     assessment,
     decision,
+    writing,
     steps: steps.map((s) => ("files" in s ? { ...s, files: s.files.map((f) => ({ ...f, data: `<${f.data.length} chars>` })) } : s)),
     results,
     evidencePack,

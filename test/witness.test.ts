@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
-import { claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision } from "../src/decide.js";
+import { checkStatements, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
 import { checkMandate, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
 import { CONSERVATIVE_POLICY, type MerchantPolicy } from "../src/policy.js";
@@ -40,8 +40,8 @@ const assessment = (overrides: Partial<Assessment> = {}): Assessment => ({
   agent_purchase: true,
   instruction_compliance: { status: "match", explanation: "Whole bean, as instructed.", sources: ["mandate.instructions[0]"] },
   listing_match: { status: "unclear", explanation: "Nothing shows what was delivered.", sources: [] },
-  evidence_notes: "The purchase was made inside the buyer's mandate.",
-  buyer_message: "Thanks for reaching out.",
+  evidence_notes: [{ text: "The purchase was made inside the buyer's mandate.", sources: ["finding.authorization"] }],
+  buyer_message: [{ text: "We have reviewed the delivery record.", sources: ["finding.fulfilment"] }],
   ...overrides,
 });
 
@@ -103,12 +103,30 @@ describe("findings", () => {
     expect(decision.gaps.join(" ")).toContain("PROOF_OF_REFUND");
   });
 
+  it("sends only statements whose every citation is a supplied fact", () => {
+    const facts = { "shipment_tracking[0]": { status: "DELIVERED" } };
+    const { sent, dropped } = checkStatements(
+      [
+        { text: "Delivered on Oct 2.", sources: ["shipment_tracking[0]"] },
+        { text: "Signed for by the buyer.", sources: ["made.up[1]"] },
+        { text: "A repeat customer.", sources: [] },
+        { text: "Delivered and signed.", sources: ["shipment_tracking[0]", "made.up[2]"] },
+      ],
+      facts,
+    );
+    expect(sent.map((s) => s.text)).toEqual(["Delivered on Oct 2."]);
+    expect(dropped).toHaveLength(3);
+  });
+
   it("downgrades a model comparison that cites no supplied fact", () => {
     const facts = { "mandate.instructions[0]": "whole bean" };
     const cited = comparisonFinding("instruction_compliance", { status: "mismatch", explanation: "ground, not whole bean", sources: ["mandate.instructions[0]"] }, facts);
     expect(cited.status).toBe("contradicted");
     const uncited = comparisonFinding("instruction_compliance", { status: "mismatch", explanation: "ground", sources: ["made.up[3]"] }, facts);
     expect(uncited.status).toBe("unknown");
+    expect(uncited.summary).toContain("Not used");
+    const mixed = comparisonFinding("instruction_compliance", { status: "mismatch", explanation: "ground", sources: ["mandate.instructions[0]", "made.up[3]"] }, facts);
+    expect(mixed.status).toBe("unknown");
   });
 });
 
@@ -172,20 +190,21 @@ describe("planning", () => {
   const files = [{ filename: "witness.txt", contentType: "text/plain", data: "pack" }];
   const decision = (action: Decision["action"]): Decision => ({ action, basis: "facts", why: ["because"], gaps: ["fulfilment: unknown"] });
   const claim = (over: Partial<Claim>): Claim => ({ ...normalizeDispute(fixture<RawDispute>("dispute-snad-agent.json")), ...over });
+  const writing: Writing = { evidenceNotes: "notes", buyerMessage: "Thank you.", dropped: [] };
 
   it("uses only the response PayPal offers right now", () => {
     const evidence = claim({ actions: new Set(["provide_evidence", "accept_claim"]), acceptClaimTypes: ["REFUND", "REFUND_WITH_RETURN"] });
-    expect(planSteps(evidence, decision("defend"), assessment(), files).map((s) => s.kind)).toEqual(["provide_evidence"]);
-    expect(planSteps(evidence, decision("refund"), assessment(), files).map((s) => s.kind)).toEqual(["accept_claim"]);
-    expect(planSteps(evidence, decision("propose_return"), assessment(), files)[0]).toMatchObject({ kind: "accept_claim", acceptClaimType: "REFUND_WITH_RETURN" });
+    expect(planSteps(evidence, decision("defend"), writing, files).map((s) => s.kind)).toEqual(["provide_evidence"]);
+    expect(planSteps(evidence, decision("refund"), writing, files).map((s) => s.kind)).toEqual(["accept_claim"]);
+    expect(planSteps(evidence, decision("propose_return"), writing, files)[0]).toMatchObject({ kind: "accept_claim", acceptClaimType: "REFUND_WITH_RETURN" });
 
     const inquiry = claim({ stage: "INQUIRY", actions: new Set(["send_message", "escalate", "make_offer"]), offerTypes: ["REFUND_WITH_RETURN"] });
-    expect(planSteps(inquiry, decision("defend"), assessment(), files).map((s) => s.kind)).toEqual(["send_message", "escalate"]);
-    expect(planSteps(inquiry, decision("propose_return"), assessment(), files).map((s) => s.kind)).toEqual(["make_offer"]);
+    expect(planSteps(inquiry, decision("defend"), writing, files).map((s) => s.kind)).toEqual(["send_message", "escalate"]);
+    expect(planSteps(inquiry, decision("propose_return"), writing, files).map((s) => s.kind)).toEqual(["make_offer"]);
 
     const reviewOnly = claim({ actions: new Set(["provide_supporting_info"]) });
-    expect(planSteps(reviewOnly, decision("refund"), assessment(), files)[0]?.kind).toBe("none");
-    expect(planSteps(reviewOnly, decision("request_evidence"), assessment(), files)[0]).toMatchObject({ kind: "none" });
+    expect(planSteps(reviewOnly, decision("refund"), writing, files)[0]?.kind).toBe("none");
+    expect(planSteps(reviewOnly, decision("request_evidence"), writing, files)[0]).toMatchObject({ kind: "none" });
   });
 });
 
@@ -275,6 +294,27 @@ describe("pipeline", () => {
     expect(live.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
     expect(writes).toEqual([{ path: "/v1/customer/disputes/PP-R-SSN-10190213/provide-evidence", contentType: "multipart" }]);
     expect(readdirSync(runsDir)).toHaveLength(2);
+  });
+
+  it("submits only the evidence statements that cite supplied facts", async () => {
+    const { client } = fakePayPal("DELIVERED");
+    const writer: Assessor = {
+      model: "fake",
+      assess: async () =>
+        assessment({
+          claim_type: "item_not_received",
+          evidence_notes: [
+            { text: "Tracking shows the parcel delivered.", sources: ["shipment_tracking[0]"] },
+            { text: "The buyer signed for it.", sources: ["signature[0]"] },
+          ],
+        }),
+    };
+    const record = await processDispute({ ...deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), assessor: writer }, "PP-R-SSN-10190213", {
+      execute: false,
+    });
+    expect(record.steps[0]).toMatchObject({ kind: "provide_evidence", notes: "Tracking shows the parcel delivered. (sources: shipment_tracking[0])" });
+    expect(record.writing.dropped.map((s) => s.text)).toEqual(["The buyer signed for it."]);
+    expect(record.evidencePack).toContain("NOT SENT");
   });
 
   it("answers PayPal's stated reason and flags Claude's different reading", async () => {

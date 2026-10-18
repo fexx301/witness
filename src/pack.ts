@@ -2,7 +2,7 @@
 // and sources, what is still missing, and the action taken.
 
 import type { Claim } from "./claim.js";
-import type { Assessment, Decision } from "./decide.js";
+import type { Assessment, Decision, Writing } from "./decide.js";
 import type { EvidenceRequestStatus, Finding } from "./findings.js";
 import type { Mandate, MandateCheck } from "./mandate.js";
 import type { Tracking } from "./paypal/orders.js";
@@ -16,6 +16,7 @@ export interface PackInput {
   requests: EvidenceRequestStatus[];
   assessment: Assessment;
   decision: Decision;
+  writing: Writing;
   policyName: string;
   generatedAt: string;
 }
@@ -28,7 +29,7 @@ const MARK: Record<Finding["status"], string> = {
 };
 
 export function renderEvidencePack(input: PackInput): string {
-  const { claim, mandate, checks, tracking, findings, requests, assessment, decision, policyName, generatedAt } = input;
+  const { claim, mandate, checks, tracking, findings, requests, assessment, decision, writing, policyName, generatedAt } = input;
   const lines = [
     `WITNESS INVESTIGATION`,
     `Dispute ${claim.disputeId} · ${claim.reason} · ${claim.amount.value.toFixed(2)} ${claim.amount.currency}`,
@@ -59,6 +60,7 @@ export function renderEvidencePack(input: PackInput): string {
   lines.push(``, `DECISION: ${decision.action.toUpperCase()} (basis: ${decision.basis.replace("_", " ")}; policy: ${policyName})`, ...decision.why.map((w) => `  - ${w}`));
   if (decision.discrepancy) lines.push(`DISCREPANCY: ${decision.discrepancy}`);
   if (decision.gaps.length) lines.push(`MISSING`, ...decision.gaps.map((g) => `  - ${g}`));
-  if (decision.action === "defend") lines.push(``, assessment.evidence_notes);
+  if (decision.action === "defend") lines.push(``, writing.evidenceNotes);
+  if (writing.dropped.length) lines.push(``, `NOT SENT (cites no supplied fact)`, ...writing.dropped.map((s) => `  - ${s.text}`));
   return lines.join("\n") + "\n";
 }

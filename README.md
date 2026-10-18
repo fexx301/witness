@@ -23,8 +23,14 @@ Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run aga
    - **fulfilment**: only a delivered record establishes delivery. A shipped status, or a missing record,
      is unknown, not proof either way.
 4. **Compare with Claude**: what the buyer instructed, what the agent bought, and what the listing
-   promised. Every conclusion must cite the facts it rests on; an uncited conclusion is treated as unknown.
-5. **Decide by claim type**: not-received claims turn on delivery, not-as-described claims on the listing
+   promised. Every conclusion must cite the facts it rests on; a conclusion with a missing or unknown
+   citation is treated as unknown. Claude also writes the notes PayPal receives and the message to the
+   buyer, as separate statements that each cite their facts. Code sends only the statements whose every
+   citation is a supplied fact; the rest are dropped, listed in the investigation file as not sent, and
+   kept in the run record.
+5. **Decide by the reason PayPal records for the dispute**, since that is what PayPal adjudicates on. If
+   Claude reads the buyer's words as a different kind of claim, Witness shows the discrepancy and still
+   answers PayPal's reason. Not-received claims turn on delivery, not-as-described claims on the listing
    and the instructions, unauthorized claims on the mandate. A valid mandate never on its own means
    "defend". Where Witness finds an *agent* instruction violation but the merchant delivered as listed,
    the merchant's own policy decides whether to refund, offer a return, or review. Anything unestablished
