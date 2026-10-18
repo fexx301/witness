@@ -89,9 +89,15 @@ a day ($1 by default). AG Studio runs locally without a licence key, with a wate
 
 ## Status
 
-Correctness pass done: claim-type rules, purchase-time mandate validity, PayPal evidence requests, and
-merchant policy. Next: testing whether buyer approval of a mandate can be tied to PayPal's own checkout
-approval, then item-level instructions in the demo, then the AG Studio investigation desk.
+Working end to end on the PayPal sandbox. An agent bought the wrong variant under a buyer's instructed
+mandate, the buyer disputed it, Witness investigated it live and refunded it under the merchant's policy,
+and PayPal resolved the case in the buyer's favour (`PP-R-YUX-10193379`). The investigation desk shows the
+queue and each investigation.
+
+PayPal's approval page shows the buyer only an active automatic payment, not the mandate's terms, so buyer
+acceptance has to be recorded in Witness and linked to the PayPal-approved payment method. That link is
+not built yet. Next: that link, a labelled comparison of Witness against the rules-only baseline, and
+hosting.
 
 ## License
 
