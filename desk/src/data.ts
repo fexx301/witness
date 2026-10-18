@@ -20,7 +20,12 @@ export interface DisputeRow {
 }
 
 const refreshes = new EventTarget();
-export const requestRefresh = () => refreshes.dispatchEvent(new Event("refresh"));
+// Every widget queries the source; they share one load until something asks for a refresh.
+let shared: Promise<DisputeRow[]> | null = null;
+export const requestRefresh = () => {
+  shared = null;
+  refreshes.dispatchEvent(new Event("refresh"));
+};
 export const onRefresh = (listener: () => void) => {
   refreshes.addEventListener("refresh", listener);
   return () => refreshes.removeEventListener("refresh", listener);
@@ -63,7 +68,7 @@ export const witnessSource: AgDataSourceDefinition<"row"> = {
     },
   ],
   getData: async (_tableId, fieldIds) => ({
-    data: (await loadRows()).map((row) =>
+    data: (await (shared ??= loadRows().catch((error) => ((shared = null), Promise.reject(error))))).map((row) =>
       Object.fromEntries(
         fieldIds.map((id) => {
           const value = row[id as keyof DisputeRow];
