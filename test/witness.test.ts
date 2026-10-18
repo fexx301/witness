@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
+import { RulesAssessor } from "../src/baseline.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
@@ -185,6 +186,19 @@ describe("claim type", () => {
     expect(claimTypeForReason("MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED")).toBe("not_as_described");
     expect(claimTypeForReason("UNAUTHORISED")).toBe("unauthorized");
     expect(claimTypeForReason("DUPLICATE_TRANSACTION")).toBe("other");
+  });
+});
+
+describe("rules-only baseline", () => {
+  it("defends an authorized, delivered purchase whatever the buyer says the agent got wrong", async () => {
+    const claim = normalizeDispute(fixture<RawDispute>("dispute-snad-agent.json"));
+    const established = [finding("authorization", "established"), finding("fulfilment", "established")];
+    const facts = { "finding.authorization": {}, "finding.fulfilment": {} };
+    const a = await new RulesAssessor().assess({ claim, mandate: legacyMandate, findings: established, tracking: [] });
+    expect(a.claim_type).toBe("not_as_described");
+    const f = [established[0]!, comparisonFinding("instruction_compliance", a.instruction_compliance, facts), comparisonFinding("listing_match", a.listing_match, facts), established[1]!];
+    expect(decide(a.claim_type, f, [], DEMO_POLICY).action).toBe("defend");
+    expect(checkStatements(a.evidence_notes, facts).dropped).toHaveLength(0);
   });
 });
 
