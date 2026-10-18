@@ -32,6 +32,9 @@ export const onRefresh = (listener: () => void) => {
   return () => refreshes.removeEventListener("refresh", listener);
 };
 
+// The rows every widget and the picker share until the next refresh.
+export const sharedRows = () => (shared ??= loadRows().catch((error) => ((shared = null), Promise.reject(error))));
+
 export async function loadRows(): Promise<DisputeRow[]> {
   const response = await fetch("/api/disputes");
   const body = await response.json();
@@ -69,7 +72,7 @@ export const witnessSource: AgDataSourceDefinition<"row", WitnessRegistry> = {
     },
   ],
   getData: async (_tableId, fieldIds) => ({
-    data: (await (shared ??= loadRows().catch((error) => ((shared = null), Promise.reject(error))))).map((row) =>
+    data: (await sharedRows()).map((row) =>
       Object.fromEntries(
         fieldIds.map((id) => {
           const value = row[id as keyof DisputeRow];

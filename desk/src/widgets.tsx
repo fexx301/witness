@@ -5,7 +5,7 @@
 import type { AgDefaultWidgetDefinition, AgWidgetsConfig } from "ag-studio";
 import { createWidgets, type AgRegistry, type AgWidgetDefinition } from "ag-studio-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { loadRows, onRefresh, type DisputeRow } from "./data";
+import { onRefresh, sharedRows, type DisputeRow } from "./data";
 import { execute, investigate, openDispute, useInvestigation, useSelectedDispute, type Finding, type InvestigationView, type Step } from "./deskState";
 
 const INK = "#14213D";
@@ -88,11 +88,20 @@ function WithView({ title, children }: { title: string; children: (view: Investi
 const finding = (view: InvestigationView, key: string): Finding | undefined => view.reviewed.findings.find((f) => f.key === key);
 const stepText = (step: Step) => step.notes ?? step.message ?? step.note ?? step.reason ?? "";
 
+// Why nothing is sent, in one line; the missing evidence itself is listed in the decision trace.
+function nothingSent(view: InvestigationView): string {
+  const { decision, claim, steps } = view.reviewed;
+  if (claim.outcome) return "The dispute is resolved; there is nothing to send.";
+  if (decision.action === "request_evidence") return `Nothing is sent: Witness needs ${decision.gaps.length} more piece(s) of evidence first. See How Witness decided.`;
+  if (decision.action === "review") return "Nothing is sent: this case goes to a person to review.";
+  return steps[0]?.reason ?? "This decision sends nothing to PayPal.";
+}
+
 function Picker() {
   const [rows, setRows] = useState<DisputeRow[] | null>(null);
   const selected = useSelectedDispute();
   useEffect(() => {
-    const load = () => loadRows().then(setRows, () => setRows([]));
+    const load = () => sharedRows().then(setRows, () => setRows([]));
     load();
     return onRefresh(load);
   }, []);
@@ -273,7 +282,7 @@ function Trace() {
                   ))
                 : sendable.length
                   ? sendable.map((s, index) => <div key={index}>{STEP_LABEL[s.kind] ?? s.kind} (not sent yet)</div>)
-                  : reviewed.steps[0]?.reason ?? "Nothing to send."}
+                  : nothingSent(view)}
             </TraceStep>
           </ol>
         );
@@ -327,7 +336,7 @@ function Outgoing() {
         const steps = (view.executed?.steps ?? view.reviewed.steps).filter((s) => s.kind !== "none");
         return (
           <>
-            {steps.length === 0 && <Muted>{view.reviewed.steps[0]?.reason ?? "Nothing is sent for this decision."}</Muted>}
+            {steps.length === 0 && <Muted>{nothingSent(view)}</Muted>}
             {steps.map((step, index) => (
               <div key={index} style={{ margin: "0 0 8px" }}>
                 <p style={{ margin: "0 0 2px", fontWeight: 600 }}>
@@ -418,7 +427,7 @@ function Actions() {
           </span>
         )}
       </div>
-      {view && !canSend && !view.executed && <Muted>{view.reviewed.claim.outcome ? "The dispute is resolved; there is nothing to send." : (view.reviewed.steps[0]?.reason ?? "This decision sends nothing to PayPal.")}</Muted>}
+      {view && !canSend && !view.executed && <Muted>{nothingSent(view)}</Muted>}
       {view?.executed && <Muted>Already sent to PayPal at {new Date(view.executed.ranAt).toLocaleString()}.</Muted>}
       {view && !view.executed && view.lastSent && <Muted>An earlier investigation was sent to PayPal at {new Date(view.lastSent.ranAt).toLocaleString()}.</Muted>}
       {confirming && view && (
