@@ -54,7 +54,7 @@ Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run aga
 
 ```bash
 npm install
-cp .env.example .env    # PayPal sandbox app credentials + ANTHROPIC_API_KEY
+cp .env.example .env    # PayPal sandbox app credentials + ANTHROPIC_API_KEY (or OPENROUTER_API_KEY)
 npm run witness -- list
 npm run witness -- inspect <dispute-id>
 npm run witness -- run <dispute-id>            # dry run: shows the investigation and planned response

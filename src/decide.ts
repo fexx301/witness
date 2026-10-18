@@ -92,18 +92,23 @@ export class ClaudeAssessor implements Assessor {
   private readonly client: Anthropic;
 
   constructor(options: { model?: string; client?: Anthropic } = {}) {
-    this.model = options.model ?? process.env.WITNESS_MODEL ?? "claude-opus-5";
-    this.client = options.client ?? new Anthropic();
+    // With only an OpenRouter key, go through OpenRouter's Anthropic-compatible endpoint.
+    const env = process.env;
+    const openRouter = !options.client && !env.ANTHROPIC_API_KEY && !env.ANTHROPIC_AUTH_TOKEN && Boolean(env.OPENROUTER_API_KEY);
+    this.model = options.model ?? env.WITNESS_MODEL ?? (openRouter ? "anthropic/claude-opus-5.5" : "claude-opus-5");
+    this.client =
+      options.client ?? (openRouter ? new Anthropic({ baseURL: "https://openrouter.ai/api", authToken: env.OPENROUTER_API_KEY, apiKey: null }) : new Anthropic());
   }
 
   async assess(input: AssessmentInput): Promise<Assessment> {
     // Buyer-written text goes in its own delimited block; everything else is a keyed fact.
     const facts = Object.fromEntries(Object.entries(factsFor(input)).filter(([key]) => !key.startsWith("buyer_statements")));
+    // Server-side fallback is an Anthropic API feature; OpenRouter routes models itself and rejects it.
+    const anthropic = new URL(this.client.baseURL).hostname === "api.anthropic.com";
     const response = await this.client.beta.messages.parse({
       model: this.model,
       max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+      ...(anthropic ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
       output_config: { effort: "high", format: betaZodOutputFormat(AssessmentSchema) },
       system: SYSTEM,
       messages: [

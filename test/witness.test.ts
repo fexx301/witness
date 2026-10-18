@@ -1,10 +1,11 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
-import { checkStatements, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
+import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
 import { checkMandate, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
 import { CONSERVATIVE_POLICY, type MerchantPolicy } from "../src/policy.js";
@@ -184,6 +185,35 @@ describe("claim type", () => {
     expect(claimTypeForReason("MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED")).toBe("not_as_described");
     expect(claimTypeForReason("UNAUTHORISED")).toBe("unauthorized");
     expect(claimTypeForReason("DUPLICATE_TRANSACTION")).toBe("other");
+  });
+});
+
+describe("model provider", () => {
+  it("uses OpenRouter's Anthropic-compatible endpoint when only an OpenRouter key is set", () => {
+    const saved = { ...process.env };
+    try {
+      for (const name of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "WITNESS_MODEL"]) delete process.env[name];
+      process.env.OPENROUTER_API_KEY = "sk-or-test";
+      const assessor = new ClaudeAssessor();
+      expect(assessor.model).toBe("anthropic/claude-opus-5.5");
+      expect((assessor as unknown as { client: Anthropic }).client.baseURL).toBe("https://openrouter.ai/api");
+    } finally {
+      process.env = saved;
+    }
+  });
+
+  it("sends Anthropic's server-side fallback only to Anthropic itself", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchImpl = (async (_url: string | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "stop here" } }), { status: 400 });
+    }) as typeof fetch;
+    const input = { claim: normalizeDispute(fixture<RawDispute>("dispute-snad-agent.json")), mandate: null, findings: [], tracking: [] };
+    for (const baseURL of ["https://openrouter.ai/api", "https://api.anthropic.com"]) {
+      const client = new Anthropic({ baseURL, apiKey: "test", fetch: fetchImpl, maxRetries: 0 });
+      await expect(new ClaudeAssessor({ model: "m", client }).assess(input)).rejects.toThrow();
+    }
+    expect(bodies.map((body) => "fallbacks" in body)).toEqual([false, true]);
   });
 });
 
