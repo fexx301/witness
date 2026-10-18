@@ -1,6 +1,6 @@
 // One dispute, end to end: read → gather → establish findings → assess → decide → act → record.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { executeSteps, planSteps, type Step, type StepResult } from "./act.js";
 import { normalizeDispute, type Claim } from "./claim.js";
@@ -40,6 +40,64 @@ export interface RunRecord {
   steps: Step[];
   results: StepResult[];
   evidencePack: string;
+  // For an execution: the dry run a person reviewed, whose decision and text were sent.
+  reviewedRanAt?: string;
+}
+
+const recordFile = (runsDir: string, disputeId: string, ranAt: string, kind: "dry-run" | "executed") =>
+  join(runsDir, `${disputeId}-${ranAt.replace(/[:.]/g, "-")}-${kind}.json`);
+
+// The dry run a person reviewed, by its dispute and time; null when there is none.
+export function reviewedRecord(runsDir: string, disputeId: string, ranAt: string): RunRecord | null {
+  const file = recordFile(runsDir, disputeId, ranAt, "dry-run");
+  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as RunRecord) : null;
+}
+
+export class ExecutionRefused extends Error {}
+
+// Sends exactly what a person reviewed: that dry run's decision and text, planned against the
+// responses PayPal offers now. No new assessment is made. Refused when the case changed in a way that
+// matters, when it was already sent, or when the review came from the rules-only baseline. The
+// dispute's status is not compared: it only says whose turn it is, and the allowed responses are
+// re-read live.
+export async function executeReviewed(deps: Deps, reviewed: RunRecord): Promise<RunRecord> {
+  if (reviewed.executed || reviewed.model === "rules-only baseline") throw new ExecutionRefused("Only a Witness dry run can be executed.");
+  const executedBefore = readdirSync(deps.runsDir).some((name) => {
+    if (!name.startsWith(`${reviewed.disputeId}-`) || !name.endsWith("-executed.json")) return false;
+    return (JSON.parse(readFileSync(join(deps.runsDir, name), "utf8")) as RunRecord).reviewedRanAt === reviewed.ranAt;
+  });
+  if (executedBefore) throw new ExecutionRefused("This reviewed investigation was already sent to PayPal.");
+
+  const live = normalizeDispute(await deps.disputes.get(reviewed.disputeId));
+  if (live.outcome) throw new ExecutionRefused(`The dispute is already resolved (${live.outcome}).`);
+  const was = reviewed.claim;
+  const changed = [
+    live.stage !== was.stage && "stage",
+    (live.amount.value !== was.amount.value || live.amount.currency !== was.amount.currency) && "amount",
+    live.mandateHash !== was.mandateHash && "mandate",
+    JSON.stringify(live.buyerStatements) !== JSON.stringify(was.buyerStatements) && "buyer statements",
+    JSON.stringify(live.evidenceRequests.map((r) => r.type)) !== JSON.stringify(was.evidenceRequests.map((r) => r.type)) && "evidence requests",
+  ].filter(Boolean);
+  if (changed.length) throw new ExecutionRefused(`The dispute changed since the review (${changed.join(", ")}). Investigate again before acting.`);
+
+  const mandate = deps.mandates.find(live.mandateHash);
+  const files: EvidenceFile[] = [{ filename: `witness-${live.disputeId}.txt`, contentType: "text/plain", data: reviewed.evidencePack }];
+  if (mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(mandate, null, 2) });
+  const steps = planSteps(live, reviewed.decision, reviewed.writing, files);
+  const results = await executeSteps(deps.disputes, live.disputeId, steps);
+
+  const now = (deps.now ?? (() => new Date()))();
+  const record: RunRecord = {
+    ...reviewed,
+    ranAt: now.toISOString(),
+    executed: true,
+    reviewedRanAt: reviewed.ranAt,
+    claim: { ...live, actions: [...live.actions] },
+    steps: steps.map((s) => ("files" in s ? { ...s, files: s.files.map((f) => ({ ...f, data: `<${f.data.length} chars>` })) } : s)),
+    results,
+  };
+  writeFileSync(recordFile(deps.runsDir, live.disputeId, record.ranAt, "executed"), JSON.stringify(record, null, 2) + "\n");
+  return record;
 }
 
 export async function processDispute(deps: Deps, disputeId: string, options: { execute: boolean }): Promise<RunRecord> {
@@ -123,7 +181,6 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
     evidencePack,
   };
   mkdirSync(deps.runsDir, { recursive: true });
-  const stamp = now.toISOString().replace(/[:.]/g, "-");
-  writeFileSync(join(deps.runsDir, `${claim.disputeId}-${stamp}-${options.execute ? "executed" : "dry-run"}.json`), JSON.stringify(record, null, 2) + "\n");
+  writeFileSync(recordFile(deps.runsDir, claim.disputeId, record.ranAt, options.execute ? "executed" : "dry-run"), JSON.stringify(record, null, 2) + "\n");
   return record;
 }

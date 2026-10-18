@@ -14,7 +14,7 @@ import { CONSERVATIVE_POLICY, type MerchantPolicy } from "../src/policy.js";
 import { PayPalClient, PayPalError } from "../src/paypal/client.js";
 import { Disputes, type RawDispute } from "../src/paypal/disputes.js";
 import { Orders, trackingFromOrder, type Order } from "../src/paypal/orders.js";
-import { processDispute } from "../src/witness.js";
+import { ExecutionRefused, executeReviewed, processDispute } from "../src/witness.js";
 
 const fixture = <T>(name: string): T => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")) as T;
 const legacyMandate = MandateSchema.parse(fixture("mandate.json"));
@@ -313,7 +313,9 @@ function fakePayPal(trackerStatus: string | null = "SHIPPED") {
     ...(trackerStatus ? { "/v1/shipping/trackers/9E839789UG349854R-9400111899223197428490": { status: trackerStatus, carrier: "USPS" } } : {}),
     "/v1/customer/disputes/PP-R-SSN-10190213": {
       ...fixture<RawDispute>("dispute-inr-resolved.json"),
+      // An open dispute: the recorded fixture's outcome is dropped along with its resolved status.
       status: "WAITING_FOR_SELLER_RESPONSE",
+      dispute_outcome: undefined,
       links: [{ rel: "provide_evidence", href: "", method: "POST" }],
     },
     "/v2/payments/captures/9E839789UG349854R": fixture("capture-inr.json"),
@@ -329,7 +331,7 @@ function fakePayPal(trackerStatus: string | null = "SHIPPED") {
     const body = routes[path];
     return body ? new Response(JSON.stringify(body)) : new Response(JSON.stringify({ details: [{ issue: "INVALID_RESOURCE_ID" }] }), { status: 404 });
   }) as typeof fetch;
-  return { client: new PayPalClient({ clientId: "id", clientSecret: "secret", env: "sandbox" }, fetchImpl), writes };
+  return { client: new PayPalClient({ clientId: "id", clientSecret: "secret", env: "sandbox" }, fetchImpl), writes, routes };
 }
 
 const notReceived: Assessor = {
@@ -411,6 +413,30 @@ describe("pipeline", () => {
     expect(record.decision).toMatchObject({ action: "defend", basis: "facts" });
     expect(record.decision.discrepancy).toContain("MERCHANDISE_OR_SERVICE_NOT_RECEIVED");
     expect(record.evidencePack).toContain("DISCREPANCY:");
+  });
+
+  it("executes exactly the reviewed dry run, once, with no new assessment", async () => {
+    const { client, writes } = fakePayPal("DELIVERED");
+    const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
+    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: false });
+    const noModel: Assessor = { model: "fake", assess: async () => { throw new Error("no model may be called when executing a review"); } };
+    const executed = await executeReviewed({ ...deps(client, runsDir), assessor: noModel }, reviewed);
+    expect(executed).toMatchObject({ executed: true, reviewedRanAt: reviewed.ranAt, decision: reviewed.decision });
+    expect(executed.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
+    expect(writes).toEqual([{ path: "/v1/customer/disputes/PP-R-SSN-10190213/provide-evidence", contentType: "multipart" }]);
+    await expect(executeReviewed(deps(client, runsDir), reviewed)).rejects.toThrow(/already sent/);
+    expect(writes).toHaveLength(1);
+  });
+
+  it("refuses to execute when the dispute changed since the review, or when the review is the baseline", async () => {
+    const { client, writes, routes } = fakePayPal("DELIVERED");
+    const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
+    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: false });
+    await expect(executeReviewed(deps(client, runsDir), { ...reviewed, model: "rules-only baseline" })).rejects.toBeInstanceOf(ExecutionRefused);
+    const dispute = routes["/v1/customer/disputes/PP-R-SSN-10190213"] as RawDispute;
+    routes["/v1/customer/disputes/PP-R-SSN-10190213"] = { ...dispute, dispute_life_cycle_stage: "ARBITRATION" };
+    await expect(executeReviewed(deps(client, runsDir), reviewed)).rejects.toThrow(/changed since the review \(stage\)/);
+    expect(writes).toHaveLength(0);
   });
 
   it("surfaces PayPal errors with their issue and stops dependent steps", async () => {
