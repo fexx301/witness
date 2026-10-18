@@ -1,3 +1,6 @@
 node_modules/
 .env
 data/runs/
+# Local demo data from sandbox runs: the merchant policy and the mandates it creates
+data/policy.json
+data/mandates/
