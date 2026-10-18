@@ -1,6 +1,7 @@
 // The desk's agents: Witness, which only investigates, and AG Studio's five built-in agents on Claude.
 import { createAiHarness, directLlmRunner, type AgAiAgentRunContext, type AgAiAgentRunner, type AgAiEvent, type AgAiHarnessSetup, type AgAiRunInput } from "ag-studio";
 import { requestRefresh } from "./data";
+import { openDispute } from "./deskState";
 import { witnessLlmAdapter } from "./llmAdapter";
 
 const DISPUTE_ID = /PP-[A-Z0-9]+(?:-[A-Z0-9]+){1,4}/;
@@ -83,6 +84,7 @@ const witness: AgAiAgentRunner<WitnessParams> = {
         yield* say(`${input.runId}-result`, summary);
         yield* reportToDelegator(input, ctx, summary);
         requestRefresh();
+        openDispute(id);
       } catch (error) {
         if (!ctx.signal?.aborted) yield { type: "RUN_ERROR", message: error instanceof Error ? error.message : String(error) };
         return;

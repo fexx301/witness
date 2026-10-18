@@ -463,9 +463,12 @@ describe("pipeline", () => {
     const [after] = await disputeRows(deps(client, runsDir));
     expect(after).toMatchObject({ witnessDecision: "defend", baselineDecision: "defend", investigatedAt: witness.ranAt });
     const view = investigationView(runsDir, "PP-R-SSN-10190213");
-    expect(view).toMatchObject({ reviewed: { ranAt: witness.ranAt }, mandate: null, baseline: { decision: { action: "defend" } }, executed: null });
+    expect(view).toMatchObject({ reviewed: { ranAt: witness.ranAt }, mandate: null, baseline: { decision: { action: "defend" } }, executed: null, lastSent: null });
     await executeReviewed(deps(client, runsDir), witness);
     expect(investigationView(runsDir, "PP-R-SSN-10190213", witness.ranAt)?.executed?.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
+    // A newer review of the same dispute still shows what was sent before.
+    const { witness: later } = await investigate({ ...deps(client, runsDir), now: () => new Date("2026-10-03T11:00:00Z") }, "PP-R-SSN-10190213");
+    expect(investigationView(runsDir, "PP-R-SSN-10190213", later.ranAt)).toMatchObject({ executed: null, lastSent: { results: [{ step: "provide_evidence", ok: true }] } });
     expect((await disputeRows(deps(client, runsDir)))[0]).toMatchObject({ sentToPayPal: "Yes" });
   });
 

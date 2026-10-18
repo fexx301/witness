@@ -1,11 +1,12 @@
 // The desk's starting layout. Page 1 was built by AG Studio's own agents from a written brief, then
 // exported with getState(); page 2 holds the investigation widgets.
 import type { AgReportState } from "ag-studio";
+import type { WitnessRegistry } from "./widgets";
 
 const count = [{ id: "disputes.disputeId", aggregation: "count" as const }];
 const kpi = (text: string) => ({ type: "value" as const, format: { title: { enabled: true, text } }, dataMapping: { value: count } });
 
-export const initialState: AgReportState = {
+export const initialState: AgReportState<WitnessRegistry> = {
   pages: [
     {
       id: "queue",
@@ -46,7 +47,27 @@ export const initialState: AgReportState = {
         },
       },
     },
-    { id: "investigation" },
+    {
+      id: "investigation",
+      widgets: {
+        "w-picker": { type: "witness-picker" },
+        "w-actions": { type: "witness-actions" },
+        "w-claim": { type: "witness-claim" },
+        "w-baseline": { type: "witness-baseline" },
+        "w-mandate": { type: "witness-mandate" },
+        "w-trace": { type: "witness-trace" },
+        "w-outgoing": { type: "witness-outgoing" },
+      },
+      widgetLayout: {
+        "w-picker": { xTrack: 0, yTrack: 0, xSpan: 9, ySpan: 14 },
+        "w-actions": { xTrack: 9, yTrack: 0, xSpan: 15, ySpan: 14 },
+        "w-claim": { xTrack: 0, yTrack: 14, xSpan: 8, ySpan: 18 },
+        "w-baseline": { xTrack: 8, yTrack: 14, xSpan: 8, ySpan: 18 },
+        "w-mandate": { xTrack: 16, yTrack: 14, xSpan: 8, ySpan: 18 },
+        "w-trace": { xTrack: 0, yTrack: 32, xSpan: 14, ySpan: 34 },
+        "w-outgoing": { xTrack: 14, yTrack: 32, xSpan: 10, ySpan: 34 },
+      },
+    },
   ],
   selectedPageId: "queue",
   version: "3.0.0",

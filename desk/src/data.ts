@@ -2,6 +2,7 @@
 // fields are declared here once (saved dashboards refer to them by id). Anything that changes a
 // dispute (an investigation, an execution) asks for a refresh, which reloads the source.
 import type { AgDataSourceDefinition, AgFieldDefinition } from "ag-studio";
+import type { WitnessRegistry } from "./widgets";
 
 export interface DisputeRow {
   disputeId: string;
@@ -38,11 +39,11 @@ export async function loadRows(): Promise<DisputeRow[]> {
   return body.rows as DisputeRow[];
 }
 
-const text = (id: keyof DisputeRow, name: string): AgFieldDefinition => ({ id, name, format: "textFormat" });
-const when = (id: keyof DisputeRow, name: string): AgFieldDefinition => ({ id, name, format: "dateTimeFormat" });
+const text = (id: keyof DisputeRow, name: string): AgFieldDefinition<WitnessRegistry> => ({ id, name, format: "textFormat" });
+const when = (id: keyof DisputeRow, name: string): AgFieldDefinition<WitnessRegistry> => ({ id, name, format: "dateTimeFormat" });
 const DATE_FIELDS = new Set<string>(["responseDue", "openedAt", "investigatedAt"]);
 
-export const witnessSource: AgDataSourceDefinition<"row"> = {
+export const witnessSource: AgDataSourceDefinition<"row", WitnessRegistry> = {
   id: "witness",
   name: "Witness",
   dataShape: "row",

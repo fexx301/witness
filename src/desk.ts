@@ -84,11 +84,15 @@ export function investigationView(runsDir: string, disputeId: string, ranAt?: st
   const reviewed = ranAt ? reviewedRecord(runsDir, disputeId, ranAt) : latestDryRun(runsDir, disputeId);
   if (!reviewed) return null;
   const baseline = latestDryRun(baselineDir(runsDir), disputeId);
-  const executed = records(runsDir, disputeId).find((r) => r.executed && r.reviewedRanAt === reviewed.ranAt) ?? null;
+  const all = records(runsDir, disputeId);
+  const executed = all.find((r) => r.executed && r.reviewedRanAt === reviewed.ranAt) ?? null;
+  // What was last actually sent for this dispute, from any run, so a dispute acted on earlier says so.
+  const lastSent = all.filter((r) => r.executed && r.results.some((result) => result.ok && result.step !== "none")).at(-1) ?? null;
   return {
     reviewed,
     mandate: mandates?.find(reviewed.claim.mandateHash) ?? null,
     baseline: baseline && { ranAt: baseline.ranAt, decision: baseline.decision, findings: baseline.findings },
     executed: executed && { ranAt: executed.ranAt, steps: executed.steps, results: executed.results },
+    lastSent: lastSent && { ranAt: lastSent.ranAt, results: lastSent.results },
   };
 }
