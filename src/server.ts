@@ -56,6 +56,8 @@ const server = createServer(async (req, res) => {
       );
       return json(res, 200, {
         disputeId: record.disputeId,
+        status: record.claim.status,
+        outcome: record.claim.outcome ?? null,
         model: record.model,
         policy: record.policy,
         decision: record.decision,
