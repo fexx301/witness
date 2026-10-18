@@ -11,16 +11,18 @@ import { PayPalClient, credentialsFromEnv } from "./paypal/client.js";
 import { Disputes } from "./paypal/disputes.js";
 import { Orders } from "./paypal/orders.js";
 import { loadPolicy } from "./policy.js";
-import { toClaudeRequest, type StudioTurn } from "./studioLlm.js";
+import { DailyBudget, toClaudeRequest, type StudioTurn } from "./studioLlm.js";
 import { ExecutionRefused, executeReviewed, reviewedRecord, type Deps } from "./witness.js";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
 const DISPUTE_ID = /^PP-[A-Z0-9]+(?:-[A-Z0-9]+){1,4}$/;
 const RAN_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-// Each desk chat turn is bounded, whatever the browser sends: one model, capped output and request size.
-const LLM_MAX_TOKENS = 16_000;
+// Each desk chat turn is bounded, whatever the browser sends: one model, capped output and request size,
+// and a daily spending budget. OpenRouter reserves credit for every parallel turn's maximum output.
+const LLM_MAX_TOKENS = 8_000;
 const LLM_MAX_REQUEST_BYTES = 2_000_000;
+const llmBudget = new DailyBudget(Number(process.env.WITNESS_DESK_AI_DAILY_USD ?? 1));
 
 const host = process.env.WITNESS_HOST ?? "127.0.0.1";
 const port = Number(process.env.WITNESS_PORT ?? 8790);
@@ -109,11 +111,14 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (raw === null) return json(res, 413, { error: "Request too large." });
     const turn = JSON.parse(raw) as StudioTurn;
     if (!Array.isArray(turn.input)) return json(res, 400, { error: "A Studio turn needs an input list." });
+    if (llmBudget.remaining() <= 0) return json(res, 429, { error: "The desk's AI budget for today is used up. Witness investigations still work." });
     const { client: claude, model } = claudeClient();
     // Closing the chat in the desk aborts the browser request, which cancels this call too.
     const abort = new AbortController();
     res.on("close", () => abort.abort());
     const reply = await claude.messages.create({ model, max_tokens: LLM_MAX_TOKENS, ...toClaudeRequest(turn) }, { signal: abort.signal });
+    const cost = llmBudget.charge(model, reply.usage);
+    console.log(`desk AI turn: $${cost.toFixed(4)}, $${llmBudget.remaining().toFixed(2)} left today`);
     return json(res, 200, {
       id: reply.id,
       model: reply.model,

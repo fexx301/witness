@@ -70,3 +70,42 @@ export function toClaudeRequest(turn: StudioTurn) {
       : {}),
   };
 }
+
+// Dollars per million input and output tokens. An unknown model is charged at Opus rates, the highest.
+const RATES: Record<string, [number, number]> = {
+  "anthropic/claude-opus-5.5": [4, 20],
+  "claude-opus-5-5": [4, 20],
+  "claude-opus-5": [5, 25],
+  "anthropic/claude-sonnet-5.5": [2, 10],
+  "claude-sonnet-5-5": [2, 10],
+  "anthropic/claude-haiku-5.5": [0.1, 0.5],
+  "claude-haiku-5-5": [0.1, 0.5],
+};
+
+// What the desk's chat may spend in one UTC day, counted from each reply's token usage. AG Studio's
+// agents run several turns in parallel, so without a cap one request can cost dollars.
+// shortcut: turns already in flight when the limit is reached still complete, so it can overshoot by their
+// cost; reserve each turn's maximum up front if that ever matters.
+export class DailyBudget {
+  private day = "";
+  private spent = 0;
+  constructor(private readonly limitUsd: number, private readonly today = () => new Date().toISOString().slice(0, 10)) {}
+
+  private roll() {
+    if (this.day !== this.today()) [this.day, this.spent] = [this.today(), 0];
+  }
+
+  remaining(): number {
+    this.roll();
+    return Math.max(0, this.limitUsd - this.spent);
+  }
+
+  charge(model: string, usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null }): number {
+    this.roll();
+    const [input, output] = RATES[model] ?? RATES["claude-opus-5-5"]!;
+    const inputTokens = usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
+    const cost = (inputTokens * input + usage.output_tokens * output) / 1_000_000;
+    this.spent += cost;
+    return cost;
+  }
+}

@@ -1,11 +1,12 @@
 // The Witness investigation desk: AG Studio with the dispute queue, the investigation page, and
 // Witness plus AG's own agents in the chat.
-import { AgStudioAiModule, AgStudioModuleRegistry, enableStudioDevValidations, studioTheme, type AgReportState, type AgStudioApi } from "ag-studio";
+import { AgStudioAiModule, AgStudioModuleRegistry, enableStudioDevValidations, studioTheme, type AgStudioApi } from "ag-studio";
 import { AgStudio } from "ag-studio-react";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { ai } from "./agents";
 import { onRefresh, witnessSource } from "./data";
+import { initialState } from "./initialState";
 
 if (import.meta.env.DEV) enableStudioDevValidations();
 AgStudioModuleRegistry.registerModules([AgStudioAiModule]);
@@ -19,7 +20,6 @@ const theme = studioTheme.withParams({
   borderRadius: 6,
 });
 
-const initialState: AgReportState = { pages: [{ id: "queue" }, { id: "investigation" }], selectedPageId: "queue" };
 
 const data = { sources: [witnessSource] };
 let studioApi: AgStudioApi | undefined;

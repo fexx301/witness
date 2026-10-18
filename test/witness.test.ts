@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
 import { RulesAssessor } from "../src/baseline.js";
 import { disputeRows, investigate, investigationView } from "../src/desk.js";
-import { toClaudeRequest } from "../src/studioLlm.js";
+import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
@@ -230,6 +230,19 @@ describe("desk model endpoint", () => {
     expect(request.system).toContain("You must call one of the available tools");
     expect(request.tool_choice).toEqual({ type: "auto" });
     expect("output_config" in request).toBe(false);
+  });
+});
+
+describe("desk AI budget", () => {
+  it("charges each turn at its model's rates, stops at the daily limit, and resets the next day", () => {
+    let day = "2026-10-18";
+    const budget = new DailyBudget(0.1, () => day);
+    expect(budget.charge("anthropic/claude-opus-5.5", { input_tokens: 10_000, output_tokens: 1_000 })).toBeCloseTo(0.06);
+    expect(budget.remaining()).toBeCloseTo(0.04);
+    budget.charge("some/unknown-model", { input_tokens: 10_000, output_tokens: 1_000 });
+    expect(budget.remaining()).toBe(0);
+    day = "2026-10-19";
+    expect(budget.remaining()).toBeCloseTo(0.1);
   });
 });
 
