@@ -112,7 +112,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     const turn = JSON.parse(raw) as StudioTurn;
     if (!Array.isArray(turn.input)) return json(res, 400, { error: "A Studio turn needs an input list." });
     if (llmBudget.remaining() <= 0) return json(res, 429, { error: "The desk's AI budget for today is used up. Witness investigations still work." });
-    const { client: claude, model } = claudeClient();
+    const { client: claude, deskModel: model } = claudeClient();
     // Closing the chat in the desk aborts the browser request, which cancels this call too.
     const abort = new AbortController();
     res.on("close", () => abort.abort());
