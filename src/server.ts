@@ -62,7 +62,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     const disputeId = url.searchParams.get("id") ?? "";
     const ranAt = url.searchParams.get("ranAt") ?? undefined;
     if (!DISPUTE_ID.test(disputeId) || (ranAt && !RAN_AT.test(ranAt))) return json(res, 400, { error: "Unknown dispute or investigation." });
-    const view = investigationView("data/runs", disputeId, ranAt);
+    const view = investigationView("data/runs", disputeId, ranAt, new MandateStore("data/mandates"));
     return view ? json(res, 200, view) : json(res, 404, { error: "No investigation yet for this dispute." });
   }
 

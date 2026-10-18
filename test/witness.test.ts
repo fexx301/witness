@@ -463,7 +463,7 @@ describe("pipeline", () => {
     const [after] = await disputeRows(deps(client, runsDir));
     expect(after).toMatchObject({ witnessDecision: "defend", baselineDecision: "defend", investigatedAt: witness.ranAt });
     const view = investigationView(runsDir, "PP-R-SSN-10190213");
-    expect(view).toMatchObject({ reviewed: { ranAt: witness.ranAt }, baseline: { decision: { action: "defend" } }, executed: null });
+    expect(view).toMatchObject({ reviewed: { ranAt: witness.ranAt }, mandate: null, baseline: { decision: { action: "defend" } }, executed: null });
     await executeReviewed(deps(client, runsDir), witness);
     expect(investigationView(runsDir, "PP-R-SSN-10190213", witness.ranAt)?.executed?.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
     expect((await disputeRows(deps(client, runsDir)))[0]).toMatchObject({ sentToPayPal: "Yes" });

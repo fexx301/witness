@@ -6,6 +6,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RulesAssessor } from "./baseline.js";
 import { normalizeDispute } from "./claim.js";
+import type { MandateStore } from "./mandate.js";
 import { processDispute, reviewedRecord, type Deps, type RunRecord } from "./witness.js";
 
 export interface DisputeRow {
@@ -77,14 +78,16 @@ export async function investigate(deps: Deps, disputeId: string): Promise<{ witn
   return { witness, baseline };
 }
 
-// The reviewed investigation (a given one, or the latest), its baseline, and what was sent from it.
-export function investigationView(runsDir: string, disputeId: string, ranAt?: string) {
+// The reviewed investigation (a given one, or the latest), the mandate it was checked against, its
+// baseline, and what was sent from it.
+export function investigationView(runsDir: string, disputeId: string, ranAt?: string, mandates?: MandateStore) {
   const reviewed = ranAt ? reviewedRecord(runsDir, disputeId, ranAt) : latestDryRun(runsDir, disputeId);
   if (!reviewed) return null;
   const baseline = latestDryRun(baselineDir(runsDir), disputeId);
   const executed = records(runsDir, disputeId).find((r) => r.executed && r.reviewedRanAt === reviewed.ranAt) ?? null;
   return {
     reviewed,
+    mandate: mandates?.find(reviewed.claim.mandateHash) ?? null,
     baseline: baseline && { ranAt: baseline.ranAt, decision: baseline.decision, findings: baseline.findings },
     executed: executed && { ranAt: executed.ranAt, steps: executed.steps, results: executed.results },
   };
