@@ -64,6 +64,29 @@ npm test
 
 Merchant policy lives in `data/policy.json`. Without one, Witness refunds nothing automatically.
 
+## The investigation desk
+
+```bash
+npm run server                          # Witness API on 127.0.0.1:8790; the PayPal and model keys stay here
+cd desk && npm install && npm run dev   # the desk on http://localhost:5173
+```
+
+The desk is built on AG Studio:
+
+- **Dispute queue:** KPIs, the queue table and decisions by reason, from live sandbox disputes. AG Studio's
+  own agents built this page from a written brief, and it is saved as the desk's starting layout.
+- **Investigation:** for the dispute you pick, the buyer's words, the mandate and its checks, a decision
+  trace that says which step Claude did and which code checked, the rules-only decision beside Witness's,
+  exactly what goes to PayPal, and the actions.
+- **Chat:** the Witness agent and AG Studio's built-in agents, which run on Claude through the Witness API
+  (`WITNESS_DESK_MODEL`, Sonnet 5.5 by default). Asked about a dispute, the lead agent hands it to Witness.
+
+The desk's AI only investigates. **Execute decision** is a button for a person: it sends exactly the
+investigation that person reviewed, with no new assessment, and is refused if the dispute changed in a way
+that matters, was already sent, or is resolved. On a server that isn't bound to localhost it is off unless
+`WITNESS_ALLOW_EXECUTE=1`. Desk chat is capped at 8,000 output tokens a turn and `WITNESS_DESK_AI_DAILY_USD`
+a day ($1 by default). AG Studio runs locally without a licence key, with a watermark.
+
 ## Status
 
 Correctness pass done: claim-type rules, purchase-time mandate validity, PayPal evidence requests, and
