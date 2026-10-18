@@ -134,11 +134,22 @@ export interface Decision {
   basis: "facts" | "merchant_policy" | "insufficient_evidence";
   why: string[];
   gaps: string[];
+  // Claude's reading of the claim, when it differs from PayPal's stated reason.
+  discrepancy?: string;
 }
 
 function byPolicy(choice: PolicyChoice, policy: MerchantPolicy, why: string[], gaps: string[]): Decision {
   return { action: choice, basis: "merchant_policy", why: [...why, `Merchant policy "${policy.name}" says: ${choice}.`], gaps };
 }
+
+// PayPal adjudicates on the reason the buyer filed under, so that reason routes the case.
+// Claude's reading of the buyer's words is shown when it differs, never followed silently.
+const REASON_CLAIM_TYPES: Record<string, Assessment["claim_type"]> = {
+  MERCHANDISE_OR_SERVICE_NOT_RECEIVED: "item_not_received",
+  MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED: "not_as_described",
+  UNAUTHORISED: "unauthorized",
+};
+export const claimTypeForReason = (reason: string): Assessment["claim_type"] => REASON_CLAIM_TYPES[reason] ?? "other";
 
 // Claim-specific rules. A mandate that passes never, on its own, means defend.
 export function decide(

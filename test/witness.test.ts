@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
-import { comparisonFinding, decide, type Assessment, type Assessor, type Decision } from "../src/decide.js";
+import { claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
 import { checkMandate, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
 import { CONSERVATIVE_POLICY, type MerchantPolicy } from "../src/policy.js";
@@ -159,6 +159,15 @@ describe("decide: regressions", () => {
   });
 });
 
+describe("claim type", () => {
+  it("routes on PayPal's stated reason, not on Claude's reading", () => {
+    expect(claimTypeForReason("MERCHANDISE_OR_SERVICE_NOT_RECEIVED")).toBe("item_not_received");
+    expect(claimTypeForReason("MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED")).toBe("not_as_described");
+    expect(claimTypeForReason("UNAUTHORISED")).toBe("unauthorized");
+    expect(claimTypeForReason("DUPLICATE_TRANSACTION")).toBe("other");
+  });
+});
+
 describe("planning", () => {
   const files = [{ filename: "witness.txt", contentType: "text/plain", data: "pack" }];
   const decision = (action: Decision["action"]): Decision => ({ action, basis: "facts", why: ["because"], gaps: ["fulfilment: unknown"] });
@@ -266,6 +275,17 @@ describe("pipeline", () => {
     expect(live.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
     expect(writes).toEqual([{ path: "/v1/customer/disputes/PP-R-SSN-10190213/provide-evidence", contentType: "multipart" }]);
     expect(readdirSync(runsDir)).toHaveLength(2);
+  });
+
+  it("answers PayPal's stated reason and flags Claude's different reading", async () => {
+    const { client } = fakePayPal("DELIVERED");
+    const misread: Assessor = { model: "fake", assess: async () => assessment({ claim_type: "not_as_described" }) };
+    const record = await processDispute({ ...deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), assessor: misread }, "PP-R-SSN-10190213", {
+      execute: false,
+    });
+    expect(record.decision).toMatchObject({ action: "defend", basis: "facts" });
+    expect(record.decision.discrepancy).toContain("MERCHANDISE_OR_SERVICE_NOT_RECEIVED");
+    expect(record.evidencePack).toContain("DISCREPANCY:");
   });
 
   it("surfaces PayPal errors with their issue and stops dependent steps", async () => {

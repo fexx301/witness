@@ -57,6 +57,7 @@ export function renderEvidencePack(input: PackInput): string {
     for (const r of requests) lines.push(`  [${r.resolved ? "RESOLVED" : "UNRESOLVED"}] ${r.type}: ${r.detail}`);
   }
   lines.push(``, `DECISION: ${decision.action.toUpperCase()} (basis: ${decision.basis.replace("_", " ")}; policy: ${policyName})`, ...decision.why.map((w) => `  - ${w}`));
+  if (decision.discrepancy) lines.push(`DISCREPANCY: ${decision.discrepancy}`);
   if (decision.gaps.length) lines.push(`MISSING`, ...decision.gaps.map((g) => `  - ${g}`));
   if (decision.action === "defend") lines.push(``, assessment.evidence_notes);
   return lines.join("\n") + "\n";

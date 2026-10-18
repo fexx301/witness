@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { executeSteps, planSteps, type Step, type StepResult } from "./act.js";
 import { normalizeDispute, type Claim } from "./claim.js";
-import { comparisonFinding, decide, factsFor, type Assessment, type Assessor, type Decision } from "./decide.js";
+import { claimTypeForReason, comparisonFinding, decide, factsFor, type Assessment, type Assessor, type Decision } from "./decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type EvidenceRequestStatus, type Finding } from "./findings.js";
 import { checkMandate, type Mandate, type MandateCheck, type MandateStore } from "./mandate.js";
 import { renderEvidencePack } from "./pack.js";
@@ -79,7 +79,10 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
     established[1]!,
   ];
   const requests = resolveEvidenceRequests(claim, established[1]!, capture);
-  const decision = decide(assessment.claim_type, findings, requests, deps.policy);
+  const claimType = claimTypeForReason(claim.reason);
+  const decision = decide(claimType, findings, requests, deps.policy);
+  if (assessment.claim_type !== claimType)
+    decision.discrepancy = `PayPal's reason is ${claim.reason}, but Claude reads the buyer's words as ${assessment.claim_type}. Witness answers PayPal's stated reason.`;
 
   const evidencePack = renderEvidencePack({
     claim, mandate, checks, tracking, findings, requests, assessment, decision, policyName: deps.policy.name, generatedAt: now.toISOString(),
