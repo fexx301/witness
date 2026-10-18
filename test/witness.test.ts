@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
 import { RulesAssessor } from "../src/baseline.js";
+import { toClaudeRequest } from "../src/studioLlm.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
@@ -199,6 +200,35 @@ describe("rules-only baseline", () => {
     const f = [established[0]!, comparisonFinding("instruction_compliance", a.instruction_compliance, facts), comparisonFinding("listing_match", a.listing_match, facts), established[1]!];
     expect(decide(a.claim_type, f, [], DEMO_POLICY).action).toBe("defend");
     expect(checkStatements(a.evidence_notes, facts).dropped).toHaveLength(0);
+  });
+});
+
+describe("desk model endpoint", () => {
+  it("turns Studio's items into alternating Claude messages, dropping reasoning and forced tool use", () => {
+    const request = toClaudeRequest({
+      instructions: "You build dashboards.",
+      input: [
+        { type: "message", role: "system", content: [{ type: "text", text: "Dashboard: disputes." }] },
+        { type: "message", role: "user", content: [{ type: "text", text: "Investigate PP-R-YUX-10193379" }] },
+        { type: "reasoning" },
+        { type: "message", role: "assistant", content: [{ type: "text", text: "Delegating." }] },
+        { type: "function_call", callId: "call_1", name: "delegate_to", arguments: '{"agent":"witness"}' },
+        { type: "function_call_output", callId: "call_1", output: "REFUND (merchant policy)" },
+      ],
+      tools: [{ name: "delegate_to", description: "Hand work to another agent.", parameters: { type: "object", properties: {} } }],
+      toolChoice: "required",
+      responseFormat: { type: "text" },
+    });
+    expect(request.messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    expect(request.messages[1]!.content).toEqual([
+      { type: "text", text: "Delegating." },
+      { type: "tool_use", id: "call_1", name: "delegate_to", input: { agent: "witness" } },
+    ]);
+    expect(request.messages[2]!.content).toEqual([{ type: "tool_result", tool_use_id: "call_1", content: "REFUND (merchant policy)" }]);
+    expect(request.system).toContain("Dashboard: disputes.");
+    expect(request.system).toContain("You must call one of the available tools");
+    expect(request.tool_choice).toEqual({ type: "auto" });
+    expect("output_config" in request).toBe(false);
   });
 });
 
