@@ -50,7 +50,7 @@ export interface Accepted {
   hash: string;
   orderId: string;
   at: string;
-  vaultId?: string;
+  vaultId: string;
   alreadyRecorded: boolean;
 }
 
@@ -65,6 +65,8 @@ export async function completeAcceptance(client: PayPalClient, mandates: Mandate
   if (order.status !== "COMPLETED" || !capturedAt) throw new Error(`PayPal order ${order.id} is ${order.status ?? "unknown"}, not an approved payment.`);
   if (!mandates.find(hash)) throw new Error(`PayPal order ${order.id} carries no mandate Witness holds.`);
   const vaultId = order.payment_source?.paypal?.attributes?.vault?.id;
+  // An agent's own charge carries the hash too, but never saves PayPal; only the buyer's approval does.
+  if (!vaultId) throw new Error(`PayPal order ${order.id} did not save PayPal for the agent, so it is not an acceptance.`);
   const alreadyRecorded = mandates.lifecycle(hash).some((e) => e.event === "accepted" && e.paypal_order === order.id);
   if (!alreadyRecorded)
     mandates.record(hash, { event: "accepted", at: capturedAt, channel: `Witness acceptance page, then PayPal approval of order ${order.id}`, paypal_order: order.id });
@@ -104,7 +106,7 @@ export function acceptedPage(accepted: Accepted): string {
   return page(
     "Mandate accepted",
     `<h1>Accepted</h1><div class="card"><p>Your acceptance is recorded, linked to PayPal order <code>${escape(accepted.orderId)}</code>, approved at ${escape(accepted.at)}.</p>
-<p>${accepted.vaultId ? "PayPal is saved for your agent." : "PayPal did not report a saved payment method, so the agent cannot reorder yet."}</p>
+<p>PayPal is saved for your agent.</p>
 <p class="muted">Mandate <code>${accepted.hash.slice(0, 12)}…</code>${accepted.alreadyRecorded ? " · already recorded" : ""}</p></div>`,
   );
 }

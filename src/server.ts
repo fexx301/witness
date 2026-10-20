@@ -127,7 +127,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       const orderId = url.searchParams.get("token") ?? "";
       if (!/^[A-Z0-9]{10,20}$/.test(orderId)) return html(res, 400, errorPage("PayPal did not return an order."));
       const accepted = await completeAcceptance(client, mandates, orderId);
-      console.log(`mandate ${accepted.hash.slice(0, 12)}… accepted via PayPal order ${accepted.orderId}; agent vault ${accepted.vaultId ?? "none"}`);
+      console.log(`mandate ${accepted.hash.slice(0, 12)}… accepted via PayPal order ${accepted.orderId}; agent vault ${accepted.vaultId}`);
       return html(res, 200, acceptedPage(accepted));
     }
     const mandate = mandates.find(acceptHash);

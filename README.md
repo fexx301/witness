@@ -94,10 +94,14 @@ mandate, the buyer disputed it, Witness investigated it live and refunded it und
 and PayPal resolved the case in the buyer's favour (`PP-R-YUX-10193379`). The investigation desk shows the
 queue and each investigation.
 
-PayPal's approval page shows the buyer only an active automatic payment, not the mandate's terms, so buyer
-acceptance has to be recorded in Witness and linked to the PayPal-approved payment method. That link is
-not built yet. Next: that link, a labelled comparison of Witness against the rules-only baseline, and
-hosting.
+PayPal's approval page shows the buyer only the payment, not the mandate's terms, so the buyer accepts the
+terms on Witness's acceptance page and then approves, at PayPal, a first payment that saves PayPal for the
+agent. At dispute time Witness checks PayPal's record of that payment. This link is built and tested, not
+yet exercised live.
+
+`eval/` holds 18 synthetic cases whose labels were committed before any run. The rules-only baseline
+handles the 13 that rules can decide and misses the 5 that need the buyer's words or the instructions read;
+`npx tsx eval/run.ts` reproduces it with no keys. Witness's run (`--witness`) is next, then hosting.
 
 ## License
 

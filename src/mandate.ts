@@ -181,13 +181,16 @@ export interface PayPalApproval {
 }
 
 // PayPal never shows the buyer a mandate's terms, so acceptance is captured by Witness. When the buyer
-// accepted by approving a PayPal payment that carries the mandate's hash, PayPal's record of that approval
-// is checked: this mandate, the disputing buyer's own account, before the purchase.
+// accepted by approving, at PayPal, the first payment from Witness's acceptance page, PayPal's record of
+// that payment is checked: it saved PayPal for the agent (an agent's own charge never does), it carries
+// this mandate's hash, it came from the disputing buyer's own account, and it came before the purchase.
 export function checkPayPalApproval(approval: PayPalApproval | null, boundHash: string, buyerPayerId: string | undefined, purchasedAt: string | undefined): MandateCheck {
   const rule = "paypal_approval";
   if (!approval) return { rule, status: "unknown", detail: "The PayPal approval linked to the buyer's acceptance could not be read." };
   const order = `PayPal order ${approval.orderId}`;
   if (approval.status !== "COMPLETED") return { rule, status: "unknown", detail: `${order} is ${approval.status ?? "in an unknown state"}, not an approved payment.` };
+  if (!approval.vaultId)
+    return { rule, status: "unknown", detail: `${order} did not save PayPal for the agent, so it is not the buyer's approval at acceptance.` };
   if (approval.customId !== boundHash)
     return { rule, status: "fail", detail: `${order} carries mandate ${approval.customId?.slice(0, 12) ?? "none"}…, not this one.` };
   if (!buyerPayerId || !approval.payerId) return { rule, status: "unknown", detail: `${order} cannot be compared with the disputing buyer's PayPal account.` };
@@ -199,6 +202,6 @@ export function checkPayPalApproval(approval: PayPalApproval | null, boundHash: 
   return {
     rule,
     status: "pass",
-    detail: `PayPal confirms the buyer's own account approved ${order.replace("PayPal ", "")}, carrying this mandate, at ${approval.approvedAt}${approval.vaultId ? `, saving PayPal for the agent` : ""}.`,
+    detail: `The buyer's own PayPal account approved the first payment from this mandate's acceptance page (${order.replace("PayPal ", "")}, ${approval.approvedAt}), which saved PayPal for the agent.`,
   };
 }

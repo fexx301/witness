@@ -3,7 +3,7 @@
 //   npx tsx eval/run.ts              baseline only
 //   npx tsx eval/run.ts --witness    baseline and Witness (about $0.05 a case on Opus)
 
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RulesAssessor } from "../src/baseline.js";
@@ -11,7 +11,8 @@ import { ClaudeAssessor, type Assessor } from "../src/decide.js";
 import { CASES } from "./cases.js";
 import { caseStore, runCase, type CaseResult } from "./harness.js";
 
-process.loadEnvFile(".env");
+// The baseline needs no keys, so a fresh clone can run it.
+if (existsSync(".env")) process.loadEnvFile(".env");
 const withWitness = process.argv.includes("--witness");
 const assessors: Assessor[] = [new RulesAssessor(), ...(withWitness ? [new ClaudeAssessor()] : [])];
 

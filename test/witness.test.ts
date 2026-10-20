@@ -104,6 +104,8 @@ describe("PayPal approval of a mandate", () => {
     expect(check({ status: "APPROVED" })).toBe("unknown");
     expect(check({}, "")).toBe("unknown");
     expect(check({ approvedAt: undefined })).toBe("unknown");
+    // An agent's own charge carries the hash and the buyer's account, but saves no PayPal.
+    expect(check({ vaultId: undefined })).toBe("unknown");
   });
 });
 
@@ -136,6 +138,7 @@ describe("mandate acceptance", () => {
     await expect(completeAcceptance(paypalFor({}).client, store, "56268850E1823301N")).rejects.toThrow(/no mandate/);
     store.save(legacyMandate);
     await expect(completeAcceptance(paypalFor({ status: "APPROVED" }).client, store, "56268850E1823301N")).rejects.toThrow(/not an approved payment/);
+    await expect(completeAcceptance(paypalFor({ payment_source: {} }).client, store, "1T90859763303551K")).rejects.toThrow(/not an acceptance/);
     expect(store.lifecycle(BOUND_HASH)).toEqual([]);
   });
 
