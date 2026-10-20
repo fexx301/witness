@@ -554,3 +554,19 @@ describe("pipeline", () => {
     expect(results[0]?.error).toContain("ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE");
   });
 });
+
+describe("A11 eval harness", () => {
+  it("builds every predeclared case into a dry run that reaches a decision, with no writes to PayPal", async () => {
+    const { CASES } = await import("../eval/cases.js");
+    const { caseStore, runCase } = await import("../eval/harness.js");
+    const root = mkdtempSync(join(tmpdir(), "witness-eval-"));
+    const store = caseStore(join(root, "mandates"), CASES);
+    const results = await Promise.all(CASES.map((c) => runCase(c, new RulesAssessor(), store, join(root, "runs"))));
+    expect(results.map((r) => r.case)).toEqual(CASES.map((c) => c.id));
+    // The cases' exact facts reach the code checks: over the cap, revoked, and never accepted.
+    const authorization = (id: string) => results.find((r) => r.case === id)!.findings.authorization;
+    expect([authorization("C1"), authorization("C4"), authorization("C5"), authorization("C2")]).toEqual(["contradicted", "contradicted", "unknown", "established"]);
+    expect(results.find((r) => r.case === "B1")!.findings.fulfilment).toBe("established");
+    expect(results.find((r) => r.case === "B4")!.findings.fulfilment).toBe("contradicted");
+  });
+});
