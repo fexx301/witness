@@ -1,0 +1,13 @@
+[Unit]
+Description=Witness API for the hosted desk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=witness
+WorkingDirectory=/opt/witness
+ExecStart=/opt/witness/node_modules/.bin/tsx src/server.ts
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

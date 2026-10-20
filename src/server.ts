@@ -4,6 +4,7 @@
 
 import { existsSync } from "node:fs";
 import { acceptPage, acceptedPage, completeAcceptance, errorPage, firstOrderProblem, startAcceptance } from "./accept.js";
+import { DailyCount, isLocalRequest } from "./access.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { ClaudeAssessor, claudeClient } from "./decide.js";
 import { disputeRows, investigate, investigationView } from "./desk.js";
@@ -24,12 +25,15 @@ const RAN_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const LLM_MAX_TOKENS = 8_000;
 const LLM_MAX_REQUEST_BYTES = 2_000_000;
 const llmBudget = new DailyBudget(Number(process.env.WITNESS_DESK_AI_DAILY_USD ?? 1));
+// Each investigation is one Claude call (about $0.05 on Opus), so visitors get a daily number of them.
+const visitorInvestigations = new DailyCount(Number(process.env.WITNESS_VISITOR_INVESTIGATIONS_PER_DAY ?? 10));
 
 const host = process.env.WITNESS_HOST ?? "127.0.0.1";
 const port = Number(process.env.WITNESS_PORT ?? 8790);
 // Anyone who can reach a hosted desk could press Execute, or start PayPal orders from the acceptance
-// page, so off the local machine both need a flag.
-const executeAllowed = host === "127.0.0.1" || host === "localhost" || process.env.WITNESS_ALLOW_EXECUTE === "1";
+// page, so both are for this machine only unless a flag says otherwise. Judged per request: behind a
+// reverse proxy the server is bound to loopback but its visitors are not local.
+const executeAllowed = (req: IncomingMessage) => process.env.WITNESS_ALLOW_EXECUTE === "1" || isLocalRequest(req.headers, req.socket.remoteAddress);
 
 // Where PayPal sends the buyer back after approving; fixed, never taken from the request's Host header.
 const origin = process.env.WITNESS_PUBLIC_URL ?? `http://${host}:${port}`;
@@ -83,6 +87,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (raw === null) return json(res, 413, { error: "Request too large." });
     const { disputeId } = JSON.parse(raw || "{}") as { disputeId?: unknown };
     if (typeof disputeId !== "string" || !DISPUTE_ID.test(disputeId)) return json(res, 400, { error: "disputeId must look like PP-R-ABC-123." });
+    if (!isLocalRequest(req.headers, req.socket.remoteAddress) && !visitorInvestigations.take())
+      return json(res, 429, { error: "Today's investigations for visitors are used up. The existing investigations are still here to read." });
     const { witness, baseline } = await investigate(deps(), disputeId);
     return json(res, 200, {
       disputeId: witness.disputeId,
@@ -101,7 +107,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/execute") {
-    if (!executeAllowed) return json(res, 403, { error: "Executing decisions is turned off on this server." });
+    if (!executeAllowed(req)) return json(res, 403, { error: "Executing decisions is turned off on this server." });
     const raw = await readBody(req, 4096);
     if (raw === null) return json(res, 413, { error: "Request too large." });
     const { disputeId, ranAt } = JSON.parse(raw || "{}") as { disputeId?: unknown; ranAt?: unknown };
@@ -121,7 +127,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   // The buyer's side: read and accept a mandate, then approve the first payment at PayPal.
   const acceptHash = HASH_PATH.exec(url.pathname)?.[1];
   if (acceptHash || url.pathname === "/accept/return") {
-    if (!executeAllowed) return html(res, 403, errorPage("Accepting mandates is turned off on this server."));
+    if (!executeAllowed(req)) return html(res, 403, errorPage("Accepting mandates is turned off on this server."));
     const mandates = new MandateStore("data/mandates");
     if (req.method === "GET" && url.pathname === "/accept/return") {
       const orderId = url.searchParams.get("token") ?? "";
@@ -175,4 +181,6 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
 
 createServer((req, res) => {
   handle(req, res).catch((error) => json(res, 500, { error: error instanceof Error ? error.message : String(error) }));
-}).listen(port, host, () => console.log(`Witness API on http://${host}:${port}${executeAllowed ? "" : " (execute off)"}`));
+}).listen(port, host, () =>
+  console.log(`Witness API on http://${host}:${port}; execute and accept ${process.env.WITNESS_ALLOW_EXECUTE === "1" ? "allowed for everyone" : "local only"}`),
+);

@@ -87,6 +87,22 @@ that matters, was already sent, or is resolved. On a server that isn't bound to 
 `WITNESS_ALLOW_EXECUTE=1`. Desk chat is capped at 8,000 output tokens a turn and `WITNESS_DESK_AI_DAILY_USD`
 a day ($1 by default). AG Studio runs locally without a licence key, with a watermark.
 
+## Hosting the desk
+
+`deploy/` puts the desk on one small Ubuntu 24.04 server (AWS Lightsail or EC2) behind Caddy, which gets
+the HTTPS certificate for a domain such as a DuckDNS name.
+
+1. Create the server with a static IP, open ports 80 and 443, and point the domain at the IP.
+2. On the server: `curl -fsSLO https://raw.githubusercontent.com/fexx301/witness/main/deploy/setup.sh && bash setup.sh <name>.duckdns.org`.
+   The first run installs Node 22 and Caddy, clones the repo to `/opt/witness`, and stops to ask for keys.
+3. Copy your `.env` and your `data/` folder to `/opt/witness`, then run `bash setup.sh <name>.duckdns.org` again.
+   Run it again later to update.
+
+On a hosted desk, visitors can read the queue and investigations, chat (capped by `WITNESS_DESK_AI_DAILY_USD`),
+and run `WITNESS_VISITOR_INVESTIGATIONS_PER_DAY` investigations a day (10 by default). Execute and mandate
+acceptance work only from the server itself: requests through Caddy are visitors, even though Witness listens
+on loopback. `WITNESS_ALLOW_EXECUTE=1` would open both to everyone, so don't set it on a public server.
+
 ## Status
 
 Working end to end on the PayPal sandbox. An agent bought the wrong variant under a buyer's instructed

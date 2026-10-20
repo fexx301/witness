@@ -573,3 +573,23 @@ describe("A11 eval harness", () => {
     expect(results.find((r) => r.case === "B4")!.findings.fulfilment).toBe("contradicted");
   });
 });
+
+describe("hosted access", () => {
+  it("treats only direct loopback requests as local; anything through a proxy is a visitor", async () => {
+    const { isLocalRequest } = await import("../src/access.js");
+    expect(isLocalRequest({}, "127.0.0.1")).toBe(true);
+    expect(isLocalRequest({}, "::ffff:127.0.0.1")).toBe(true);
+    expect(isLocalRequest({ "x-forwarded-for": "203.0.113.9" }, "127.0.0.1")).toBe(false);
+    expect(isLocalRequest({ forwarded: "for=203.0.113.9" }, "::1")).toBe(false);
+    expect(isLocalRequest({}, "203.0.113.9")).toBe(false);
+  });
+
+  it("allows a daily number of uses and resets the next day", async () => {
+    const { DailyCount } = await import("../src/access.js");
+    let day = "2026-10-20";
+    const count = new DailyCount(2, () => day);
+    expect([count.take(), count.take(), count.take()]).toEqual([true, true, false]);
+    day = "2026-10-21";
+    expect(count.take()).toBe(true);
+  });
+});
