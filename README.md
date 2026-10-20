@@ -1,3 +1,5 @@
+<img src="assets/witness-logo.svg" alt="Witness" width="310">
+
 # Witness
 
 **When an AI purchase goes wrong, Witness connects what the buyer approved, what the agent bought, and

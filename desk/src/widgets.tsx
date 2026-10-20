@@ -8,7 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { onRefresh, sharedRows, type DisputeRow } from "./data";
 import { execute, investigate, openDispute, useInvestigation, useSelectedDispute, type Finding, type InvestigationView, type Step } from "./deskState";
 
-const INK = "#14213D";
+const INK = "#14243A";
 const MUTED = "#5B6578";
 const LINE = "#E3E6EB";
 

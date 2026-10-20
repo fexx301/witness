@@ -78,7 +78,7 @@ const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCode
 function page(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escape(title)}</title><style>
-body{margin:0;background:#FBFBF8;color:#14213D;font:16px/1.5 Inter,system-ui,sans-serif}
+body{margin:0;background:#FBFBF8;color:#14243A;font:16px/1.5 Inter,system-ui,sans-serif}
 main{max-width:560px;margin:40px auto;padding:0 16px}
 .card{background:#fff;border:1px solid #DADDE3;border-radius:6px;padding:20px}
 button{background:#2457D6;color:#fff;border:0;border-radius:6px;padding:10px 16px;font:inherit;cursor:pointer}

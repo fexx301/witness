@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+<title id="title">Witness</title>
+<!-- The logo's symbol, cut for small sizes: a heavier eye line and a larger check than the full logo. -->
+<g transform="translate(32 32) scale(0.37) translate(-109 -100)">
+<path d="M34 100C53 70 78 52 109 52C140 52 165 70 184 100C165 130 140 148 109 148C78 148 53 130 34 100Z" fill="none" stroke="#14243A" stroke-width="14" stroke-linejoin="round"/>
+<circle cx="109" cy="100" r="31" fill="#0076ED"/>
+<path d="M94 100L105 111L125 89" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

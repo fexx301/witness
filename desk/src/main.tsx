@@ -16,7 +16,7 @@ AgStudioModuleRegistry.registerModules([AgStudioAiModule]);
 // Light, for video and screen-share: ink text on near-white, with a cobalt accent.
 const theme = studioTheme.withParams({
   backgroundColor: "#FBFBF8",
-  foregroundColor: "#14213D",
+  foregroundColor: "#14243A",
   accentColor: "#2457D6",
   fontFamily: "Inter, Arial, sans-serif",
   borderRadius: 6,
@@ -43,14 +43,14 @@ const TABS: [PageId, string][] = [
 function Tabs() {
   const page = usePage();
   return (
-    <nav style={{ display: "flex", alignItems: "center", gap: 4, height: 44, padding: "0 12px", borderBottom: "1px solid #E3E6EB", background: "#FBFBF8", font: "14px Inter, Arial, sans-serif", color: "#14213D" }}>
-      <strong style={{ marginRight: 16 }}>Witness</strong>
+    <nav style={{ display: "flex", alignItems: "center", gap: 4, height: 44, padding: "0 12px", borderBottom: "1px solid #E3E6EB", background: "#FBFBF8", font: "14px Inter, Arial, sans-serif", color: "#14243A" }}>
+      <img src="/witness-logo.svg" alt="Witness" height={30} style={{ marginRight: 16 }} />
       {TABS.map(([id, label]) => (
         <button
           key={id}
           onClick={() => showPage(id)}
           aria-current={page === id ? "page" : undefined}
-          style={{ padding: "6px 12px", border: "none", borderBottom: `2px solid ${page === id ? "#2457D6" : "transparent"}`, background: "none", color: page === id ? "#2457D6" : "#14213D", font: "600 14px Inter, Arial, sans-serif", cursor: "pointer" }}
+          style={{ padding: "6px 12px", border: "none", borderBottom: `2px solid ${page === id ? "#2457D6" : "transparent"}`, background: "none", color: page === id ? "#2457D6" : "#14243A", font: "600 14px Inter, Arial, sans-serif", cursor: "pointer" }}
         >
           {label}
         </button>
