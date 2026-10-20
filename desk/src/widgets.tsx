@@ -189,9 +189,13 @@ function Mandate() {
             </p>
             {view.reviewed.checks.map((check) => (
               <p key={check.rule} style={{ margin: "2px 0" }}>
-                <Chip tone={STATUS[check.status] ?? { label: check.status, ...NEUTRAL }} /> {check.detail}
+                <Chip tone={STATUS[check.status] ?? { label: check.status, ...NEUTRAL }} /> {check.rule === "paypal_approval" && <Chip tone={ACTOR.paypal} />}{" "}
+                {check.detail}
               </p>
             ))}
+            {!view.reviewed.checks.some((check) => check.rule === "paypal_approval") && (
+              <Muted>The buyer's acceptance is recorded by Witness only; it is not linked to a PayPal approval.</Muted>
+            )}
           </>
         ) : (
           <Muted>No mandate is bound to this order, so the purchase is treated as the buyer's own.</Muted>

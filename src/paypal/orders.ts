@@ -14,10 +14,14 @@ export interface Capture {
 
 export interface Order {
   id: string;
+  status?: string;
   create_time?: string;
+  payer?: { payer_id?: string };
+  payment_source?: { paypal?: { attributes?: { vault?: { id?: string; status?: string } } } };
   purchase_units: {
     description?: string;
     custom_id?: string;
+    payments?: { captures?: { id: string; status: string; create_time?: string }[] };
     payee?: { merchant_id?: string; display_data?: { brand_name?: string } };
     shipping?: {
       address?: { admin_area_2?: string; admin_area_1?: string; country_code?: string };

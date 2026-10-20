@@ -10,7 +10,8 @@ import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
-import { checkMandate, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
+import { checkMandate, checkPayPalApproval, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
+import { completeAcceptance, firstOrderProblem } from "../src/accept.js";
 import { CONSERVATIVE_POLICY, type MerchantPolicy } from "../src/policy.js";
 import { PayPalClient, PayPalError } from "../src/paypal/client.js";
 import { Disputes, type RawDispute } from "../src/paypal/disputes.js";
@@ -83,6 +84,66 @@ describe("mandate", () => {
     store.record(BOUND_HASH, accepted[0]!);
     expect(store.lifecycle(BOUND_HASH)).toHaveLength(1);
     expect(store.find("../../etc/passwd")).toBeNull();
+  });
+});
+
+describe("PayPal approval of a mandate", () => {
+  const approval = { orderId: "56268850E1823301N", status: "COMPLETED", customId: BOUND_HASH, payerId: "P69H9YR3CJHFL", approvedAt: "2026-10-02T01:56:35Z", vaultId: "99s59502mc171043h" };
+  const check = (overrides: Partial<typeof approval> | null, payer = "P69H9YR3CJHFL", at = "2026-10-02T01:56:49Z") =>
+    checkPayPalApproval(overrides && { ...approval, ...overrides }, BOUND_HASH, payer, at).status;
+
+  it("passes only for this mandate, the disputing buyer's account, before the purchase", () => {
+    expect(check({})).toBe("pass");
+    expect(check({ customId: "0".repeat(64) })).toBe("fail");
+    expect(check({}, "SOMEONEELSE")).toBe("fail");
+    expect(check({ approvedAt: "2026-10-03T00:00:00Z" })).toBe("fail");
+  });
+
+  it("is unknown, never a pass, when PayPal's record is missing or incomplete", () => {
+    expect(check(null)).toBe("unknown");
+    expect(check({ status: "APPROVED" })).toBe("unknown");
+    expect(check({}, "")).toBe("unknown");
+    expect(check({ approvedAt: undefined })).toBe("unknown");
+  });
+});
+
+describe("mandate acceptance", () => {
+  // A fake PayPal for the buyer's return from approval: the capture, then the order as PayPal reports it.
+  const paypalFor = (order: Partial<Order>) => {
+    const captures: string[] = [];
+    const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === "/v1/oauth2/token") return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }));
+      if (init?.method === "POST") return captures.push(path), new Response(JSON.stringify({}));
+      return new Response(JSON.stringify({ ...fixture<Order>("order-inr.json"), ...order }));
+    }) as typeof fetch;
+    return { client: new PayPalClient({ clientId: "id", clientSecret: "secret", env: "sandbox" }, fetchImpl), captures };
+  };
+
+  it("records the acceptance once, linked to the PayPal order the buyer approved", async () => {
+    const store = new MandateStore(mkdtempSync(join(tmpdir(), "witness-mandates-")));
+    store.save(legacyMandate);
+    const { client, captures } = paypalFor({});
+    const first = await completeAcceptance(client, store, "56268850E1823301N");
+    expect(first).toMatchObject({ hash: BOUND_HASH, at: "2026-10-02T01:56:35Z", vaultId: "99s59502mc171043h", alreadyRecorded: false });
+    expect(captures).toEqual(["/v2/checkout/orders/56268850E1823301N/capture"]);
+    expect((await completeAcceptance(client, store, "56268850E1823301N")).alreadyRecorded).toBe(true);
+    expect(store.lifecycle(BOUND_HASH)).toEqual([expect.objectContaining({ event: "accepted", paypal_order: "56268850E1823301N" })]);
+  });
+
+  it("records nothing for an unapproved payment or a mandate Witness does not hold", async () => {
+    const store = new MandateStore(mkdtempSync(join(tmpdir(), "witness-mandates-")));
+    await expect(completeAcceptance(paypalFor({}).client, store, "56268850E1823301N")).rejects.toThrow(/no mandate/);
+    store.save(legacyMandate);
+    await expect(completeAcceptance(paypalFor({ status: "APPROVED" }).client, store, "56268850E1823301N")).rejects.toThrow(/not an approved payment/);
+    expect(store.lifecycle(BOUND_HASH)).toEqual([]);
+  });
+
+  it("only offers a first order the mandate itself allows", () => {
+    expect(firstOrderProblem(legacyMandate, { item: "House Blend, whole bean", amount: "16.00" })).toBeNull();
+    expect(firstOrderProblem(legacyMandate, { item: "House Blend", amount: "999.00" })).toMatch(/cap/);
+    expect(firstOrderProblem(legacyMandate, { item: "House Blend", amount: "16" })).toMatch(/16.00/);
+    expect(firstOrderProblem(legacyMandate, { item: " ", amount: "16.00" })).toMatch(/item/);
   });
 });
 
@@ -377,6 +438,15 @@ describe("pipeline", () => {
     expect(record.decision.action).toBe("request_evidence");
     expect(record.evidencePack).toContain("[UNKNOWN] fulfilment");
     expect(writes).toHaveLength(0);
+  });
+
+  it("checks PayPal's record of the approval linked to the buyer's acceptance", async () => {
+    const { client } = fakePayPal("DELIVERED");
+    const pipeline = deps(client, mkdtempSync(join(tmpdir(), "witness-runs-")));
+    pipeline.mandates.save(legacyMandate);
+    pipeline.mandates.record(BOUND_HASH, { event: "accepted", at: "2026-10-02T01:56:35Z", paypal_order: "56268850E1823301N" });
+    const record = await processDispute(pipeline, "PP-R-SSN-10190213", { execute: false });
+    expect(record.checks.find((c) => c.rule === "paypal_approval")).toMatchObject({ status: "pass" });
   });
 
   it("keeps the order's tracker status when the v1 tracking lookup fails", async () => {

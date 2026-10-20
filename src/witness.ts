@@ -6,7 +6,7 @@ import { executeSteps, planSteps, type Step, type StepResult } from "./act.js";
 import { normalizeDispute, type Claim } from "./claim.js";
 import { claimTypeForReason, comparisonFinding, decide, factsFor, writingFor, type Assessment, type Assessor, type Decision, type Writing } from "./decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type EvidenceRequestStatus, type Finding } from "./findings.js";
-import { checkMandate, type Mandate, type MandateCheck, type MandateStore } from "./mandate.js";
+import { checkMandate, checkPayPalApproval, type Mandate, type MandateCheck, type MandateStore } from "./mandate.js";
 import { renderEvidencePack } from "./pack.js";
 import type { MerchantPolicy } from "./policy.js";
 import type { Disputes, EvidenceFile } from "./paypal/disputes.js";
@@ -133,6 +133,22 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
         deps.mandates.lifecycle(claim.mandateHash!),
       )
     : [];
+  const linked = mandate ? deps.mandates.lifecycle(claim.mandateHash!).filter((e) => e.event === "accepted" && e.paypal_order).at(-1) : undefined;
+  if (linked?.paypal_order) {
+    // An unreadable approval is unknown, never a pass.
+    const approval = await deps.orders.order(linked.paypal_order).then(
+      (order) => ({
+        orderId: order.id,
+        status: order.status,
+        customId: order.purchase_units[0]?.custom_id,
+        payerId: order.payer?.payer_id,
+        approvedAt: order.purchase_units[0]?.payments?.captures?.[0]?.create_time,
+        vaultId: order.payment_source?.paypal?.attributes?.vault?.id,
+      }),
+      () => null,
+    );
+    checks.push(checkPayPalApproval(approval, claim.mandateHash!, claim.buyerPayerId, capture?.create_time));
+  }
 
   // Code establishes what it can before the model sees anything.
   const established: Finding[] = [authorizationFinding(mandate, checks), fulfilmentFinding(tracking)];

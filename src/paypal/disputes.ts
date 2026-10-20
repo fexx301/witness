@@ -21,6 +21,7 @@ export interface RawDispute {
     buyer_transaction_id?: string;
     gross_amount?: Money;
     custom?: string;
+    buyer?: { payer_id?: string };
     items?: { item_name?: string; item_description?: string; reason?: string; notes?: string }[];
   }[];
   messages?: { posted_by: string; time_posted: string; content: string }[];

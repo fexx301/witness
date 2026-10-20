@@ -12,6 +12,7 @@ export interface Claim {
   responseDueAt?: string;
   captureId?: string;
   mandateHash?: string;
+  buyerPayerId?: string;
   items: { name: string; description?: string }[];
   buyerStatements: string[];
   sellerStatements: string[];
@@ -46,6 +47,7 @@ export function normalizeDispute(dispute: RawDispute): Claim {
     responseDueAt: dispute.seller_response_due_date,
     captureId: transaction?.seller_transaction_id,
     mandateHash: transaction?.custom?.trim() || undefined,
+    buyerPayerId: transaction?.buyer?.payer_id,
     items: (transaction?.items ?? []).map((item) => ({
       name: item.item_name ?? "item",
       description: item.item_description,

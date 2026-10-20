@@ -3,6 +3,7 @@
 // sends exactly a reviewed investigation, and it is never offered to the desk's AI as a tool.
 
 import { existsSync } from "node:fs";
+import { acceptPage, acceptedPage, completeAcceptance, errorPage, firstOrderProblem, startAcceptance } from "./accept.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { ClaudeAssessor, claudeClient } from "./decide.js";
 import { disputeRows, investigate, investigationView } from "./desk.js";
@@ -26,8 +27,12 @@ const llmBudget = new DailyBudget(Number(process.env.WITNESS_DESK_AI_DAILY_USD ?
 
 const host = process.env.WITNESS_HOST ?? "127.0.0.1";
 const port = Number(process.env.WITNESS_PORT ?? 8790);
-// Anyone who can reach a hosted desk could press Execute, so off the local machine it needs a flag.
+// Anyone who can reach a hosted desk could press Execute, or start PayPal orders from the acceptance
+// page, so off the local machine both need a flag.
 const executeAllowed = host === "127.0.0.1" || host === "localhost" || process.env.WITNESS_ALLOW_EXECUTE === "1";
+
+// Where PayPal sends the buyer back after approving; fixed, never taken from the request's Host header.
+const origin = process.env.WITNESS_PUBLIC_URL ?? `http://${host}:${port}`;
 
 const client = new PayPalClient(credentialsFromEnv());
 const deps = (): Deps => ({
@@ -52,6 +57,13 @@ const json = (res: ServerResponse, status: number, body: unknown) => {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
 };
+
+const html = (res: ServerResponse, status: number, body: string) => {
+  res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
+  res.end(body);
+};
+
+const HASH_PATH = /^\/accept\/([0-9a-f]{64})$/;
 
 async function handle(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? "/", "http://desk");
@@ -103,6 +115,36 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     } catch (error) {
       if (error instanceof ExecutionRefused) return json(res, 409, { error: error.message });
       throw error;
+    }
+  }
+
+  // The buyer's side: read and accept a mandate, then approve the first payment at PayPal.
+  const acceptHash = HASH_PATH.exec(url.pathname)?.[1];
+  if (acceptHash || url.pathname === "/accept/return") {
+    if (!executeAllowed) return html(res, 403, errorPage("Accepting mandates is turned off on this server."));
+    const mandates = new MandateStore("data/mandates");
+    if (req.method === "GET" && url.pathname === "/accept/return") {
+      const orderId = url.searchParams.get("token") ?? "";
+      if (!/^[A-Z0-9]{10,20}$/.test(orderId)) return html(res, 400, errorPage("PayPal did not return an order."));
+      const accepted = await completeAcceptance(client, mandates, orderId);
+      console.log(`mandate ${accepted.hash.slice(0, 12)}… accepted via PayPal order ${accepted.orderId}; agent vault ${accepted.vaultId ?? "none"}`);
+      return html(res, 200, acceptedPage(accepted));
+    }
+    const mandate = mandates.find(acceptHash);
+    if (!mandate || !acceptHash) return html(res, 404, errorPage("Witness holds no such mandate."));
+    if (req.method === "GET") {
+      const first = { item: url.searchParams.get("item") ?? "", amount: url.searchParams.get("amount") ?? "" };
+      return html(res, 200, acceptPage(mandate, acceptHash, first, firstOrderProblem(mandate, first), url.searchParams.has("cancelled")));
+    }
+    if (req.method === "POST") {
+      const raw = await readBody(req, 4096);
+      if (raw === null) return html(res, 413, errorPage("Request too large."));
+      const form = new URLSearchParams(raw);
+      const first = { item: form.get("item") ?? "", amount: form.get("amount") ?? "" };
+      const problem = firstOrderProblem(mandate, first);
+      if (problem) return html(res, 400, acceptPage(mandate, acceptHash, first, problem, false));
+      res.writeHead(303, { location: await startAcceptance(client, acceptHash, first, origin) });
+      return res.end();
     }
   }
 
