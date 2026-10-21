@@ -72,9 +72,9 @@ function sourceLabel(id: string): string {
   return SOURCE_NOUN[id] ?? id;
 }
 // A gap is "<finding key>: <why it is unknown>", or a PayPal evidence request (src/decide.ts gapsOf).
-function gapParts(gap: string): { question: string; detail: string } {
+function gapParts(gap: string): { key?: string; question: string; detail: string } {
   const [, key, detail] = /^(\w+): ([\s\S]*)$/.exec(gap) ?? [];
-  return key && detail && FINDING_QUESTION[key] ? { question: FINDING_QUESTION[key]!, detail } : { question: "PayPal's request", detail: gap };
+  return key && detail && FINDING_QUESTION[key] ? { key, question: FINDING_QUESTION[key]!, detail } : { question: "PayPal's request", detail: gap };
 }
 
 const STEP_LABEL: Record<string, string> = {
@@ -147,7 +147,7 @@ const stepText = (step: Step) => step.notes ?? step.message ?? step.note ?? step
 function nothingSent(view: InvestigationView): string {
   const { decision, claim, steps } = view.reviewed;
   if (claim.outcome) return "The dispute is resolved; there is nothing to send.";
-  if (decision.action === "request_evidence") return "Nothing is sent yet: Witness needs more evidence first.";
+  if (decision.action === "request_evidence") return "Nothing is sent yet: Witness needs the evidence listed above.";
   if (decision.action === "review") return "Nothing is sent: this case goes to a person to review.";
   return steps[0]?.reason ?? "This decision sends nothing to PayPal.";
 }
@@ -497,7 +497,56 @@ function decisionReason(view: InvestigationView): string {
   }
   if (decision.basis === "facts") return "The records support your side of this dispute.";
   if (decision.action === "review") return "Witness does not handle this kind of claim on its own.";
-  return "Witness can't decide yet: some of the facts below are not established.";
+  return decision.gaps.length && !claim.outcome ? "Witness can't decide until it has:" : "Witness can't decide: some facts are not established.";
+}
+
+// For each missing fact: the evidence that would settle it, and who can provide it.
+function settle(key: string | undefined, view: InvestigationView, asksBuyer: boolean): { needed: string; who: string } {
+  const hash = view.reviewed.claim.mandateHash;
+  switch (key) {
+    case "authorization":
+      return hash
+        ? { needed: `The mandate this order names (${hash.slice(0, 12)}…)`, who: "The buyer's agent platform. Add it to Witness with import-mandate, then investigate again." }
+        : { needed: "A mandate linked to this order", who: "The buyer's agent platform, if an agent made the purchase." };
+    case "instruction_compliance":
+      return {
+        needed: "The buyer's item instructions and the exact variant the agent bought",
+        who: view.mandate ? "You: the variant you shipped, from your order or packing record." : "The agent platform (the buyer's mandate), and you (the variant you shipped).",
+      };
+    case "listing_match":
+      return {
+        needed: "A photo of what arrived, showing its label",
+        who: asksBuyer ? "The buyer. Witness has written the request; review it below before it is sent." : "The buyer. PayPal does not allow messages on this dispute right now.",
+      };
+    case "fulfilment":
+      return { needed: "Tracking that shows the parcel delivered", who: "You, from the carrier. Add it to the PayPal order, then investigate again." };
+    default:
+      return { needed: "What PayPal asked for", who: "You: answer it in PayPal's Resolution Center." };
+  }
+}
+
+function Missing({ view }: { view: InvestigationView }) {
+  const { decision, claim, steps } = view.reviewed;
+  if (!decision.gaps.length || claim.outcome) return null;
+  const asksBuyer = steps.some((s) => s.kind === "send_message") && decision.action === "request_evidence";
+  return (
+    <ol style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+      {decision.gaps.map((gap, index) => {
+        const { key, question, detail } = gapParts(gap);
+        const { needed, who } = settle(key, view, asksBuyer);
+        return (
+          <li key={index} style={{ margin: "0 0 6px" }}>
+            <strong>{needed}</strong>
+            <div style={{ color: MUTED }}>Who can provide it: {who}</div>
+            <details>
+              <summary style={{ cursor: "pointer", color: MUTED }}>Why it matters: {question}</summary>
+              {readable(detail)}
+            </details>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 // The four facts, in the order the purchase happened: authorized, bought, delivered as listed, delivered.
@@ -592,16 +641,9 @@ function Case() {
                 {RECOMMENDATION[action] ?? action}
                 {action === "refund" || action === "propose_return" ? ` ${amount}` : ""}
               </p>
-              <p style={{ margin: "0 0 4px" }}>{decisionReason(view)}</p>
-              {view.reviewed.decision.basis === "merchant_policy" && <Muted>Policy: {view.reviewed.policy}</Muted>}
-              {rules && rules !== action && (
-                <p style={{ margin: "6px 0 0" }}>
-                  A rules-only tool would have chosen <strong>{ACTION_LABEL[rules] ?? rules}</strong>: it can't read the buyer's words or compare their instructions with what was bought.
-                </p>
-              )}
             </>
           )}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "12px 0 4px" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "4px 0 10px" }}>
             {view && (
               <ActionButton primary disabled={!canSend || busy !== null} onClick={() => setConfirming(true)}>
                 {view.executed ? "Sent to PayPal" : reviewLabel(sendable)}
@@ -611,6 +653,18 @@ function Case() {
               {busy === "investigating" ? "Investigating… (about 20 s)" : view ? "Investigate again" : "Investigate"}
             </ActionButton>
           </div>
+          {view && action && (
+            <>
+              <p style={{ margin: "0 0 4px" }}>{decisionReason(view)}</p>
+              <Missing view={view} />
+              {view.reviewed.decision.basis === "merchant_policy" && <Muted>Policy: {view.reviewed.policy}</Muted>}
+              {rules && rules !== action && (
+                <p style={{ margin: "6px 0 0" }}>
+                  A rules-only tool would have chosen <strong>{ACTION_LABEL[rules] ?? rules}</strong>: it can't read the buyer's words or compare their instructions with what was bought.
+                </p>
+              )}
+            </>
+          )}
           {view && <Muted>Investigated {when(view.reviewed.ranAt)}</Muted>}
           {view && !canSend && !view.executed && <Muted>{nothingSent(view)}</Muted>}
           {view?.executed && <Muted>Sent to PayPal {when(view.executed.ranAt)}.</Muted>}

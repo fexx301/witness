@@ -2,7 +2,7 @@
 // If PayPal does not offer the needed response right now, nothing is sent.
 
 import type { Claim } from "./claim.js";
-import type { Decision, Writing } from "./decide.js";
+import { gapFinding, type Decision, type Writing } from "./decide.js";
 import type { Disputes, EvidenceFile } from "./paypal/disputes.js";
 
 export type Step =
@@ -16,6 +16,11 @@ export type Step =
 
 const clip = (text: string) => text.slice(0, 2000);
 
+// Written by code, not Claude: only the buyer can show what arrived. The other gaps are the merchant's
+// or the agent platform's to fill, so they are shown to the merchant, not asked of the buyer.
+export const ASK_WHAT_ARRIVED =
+  "Thank you for contacting us about this order. So we can check what arrived, please reply with a photo of the item you received that shows its label, including any size, flavour or other variant details.";
+
 export function planSteps(claim: Claim, decision: Decision, writing: Writing, files: EvidenceFile[]): Step[] {
   const notes = clip(writing.evidenceNotes);
   const reason = decision.why[0] ?? decision.action;
@@ -23,6 +28,8 @@ export function planSteps(claim: Claim, decision: Decision, writing: Writing, fi
     case "review":
       return [{ kind: "none", reason: `For a person to review: ${reason}` }];
     case "request_evidence":
+      if (decision.gaps.some((gap) => gapFinding(gap) === "listing_match") && claim.actions.has("send_message"))
+        return [{ kind: "send_message", message: ASK_WHAT_ARRIVED }];
       return [{ kind: "none", reason: `Evidence needed before acting: ${decision.gaps.join(" | ") || reason}` }];
     case "refund":
       if (claim.actions.has("accept_claim") && (claim.acceptClaimTypes.length === 0 || claim.acceptClaimTypes.includes("REFUND")))

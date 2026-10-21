@@ -3,12 +3,12 @@ import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { executeSteps, planSteps } from "../src/act.js";
+import { ASK_WHAT_ARRIVED, executeSteps, planSteps } from "../src/act.js";
 import { RulesAssessor } from "../src/baseline.js";
 import { cachedClaims, disputeRows, investigate, investigationView, rowsFor } from "../src/desk.js";
 import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
-import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
+import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, gapFinding, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
 import { checkMandate, checkPayPalApproval, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
 import { completeAcceptance, firstOrderProblem } from "../src/accept.js";
@@ -362,6 +362,18 @@ describe("planning", () => {
     const reviewOnly = claim({ actions: new Set(["provide_supporting_info"]) });
     expect(planSteps(reviewOnly, decision("refund"), writing, files)[0]?.kind).toBe("none");
     expect(planSteps(reviewOnly, decision("request_evidence"), writing, files)[0]).toMatchObject({ kind: "none" });
+  });
+
+  it("asks the buyer for a photo only when what arrived is the gap and PayPal allows a message", () => {
+    const missing = (...gaps: string[]): Decision => ({ action: "request_evidence", basis: "insufficient_evidence", why: ["not established"], gaps });
+    const inquiry = claim({ stage: "INQUIRY", actions: new Set(["send_message", "escalate"]) });
+    const ask = planSteps(inquiry, missing("listing_match: no delivery contents", "instruction_compliance: mandate not held"), writing, files);
+    expect(ask).toEqual([{ kind: "send_message", message: ASK_WHAT_ARRIVED }]);
+    // Delivery proof and the mandate are not the buyer's to give.
+    expect(planSteps(inquiry, missing("fulfilment: shipped, not delivered"), writing, files)[0]?.kind).toBe("none");
+    // Under PayPal's review there is no message to send.
+    expect(planSteps(claim({ actions: new Set() }), missing("listing_match: no delivery contents"), writing, files)[0]?.kind).toBe("none");
+    expect([gapFinding("listing_match: x"), gapFinding("PayPal requested PROOF_OF_FULFILLMENT: x")]).toEqual(["listing_match", undefined]);
   });
 });
 

@@ -189,6 +189,8 @@ export function writingFor(assessment: Assessment, facts: Record<string, unknown
 }
 
 export type Action = "defend" | "refund" | "propose_return" | "request_evidence" | "review";
+// The finding a gap is about, or undefined for a PayPal evidence request.
+export const gapFinding = (gap: string) => /^(authorization|instruction_compliance|listing_match|fulfilment): /.exec(gap)?.[1] as Finding["key"] | undefined;
 export interface Decision {
   action: Action;
   basis: "facts" | "merchant_policy" | "insufficient_evidence";
@@ -224,6 +226,7 @@ export function decide(
   const listing = get("listing_match");
   const fulfilment = get("fulfilment");
   const unresolved = requests.filter((r) => !r.resolved).map((r) => `PayPal requested ${r.type}: ${r.detail}`);
+  // Each gap starts with its finding's key (see gapFinding); PayPal's own requests do not.
   const gapsOf = (...relevant: Finding[]) => [
     ...relevant.filter((f) => f.status === "unknown").map((f) => `${f.key}: ${f.summary}`),
     ...unresolved,
