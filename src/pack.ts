@@ -50,6 +50,8 @@ export function renderEvidencePack(input: PackInput): string {
       ...(mandate.instructions ?? []).map((s, i) => `  mandate.instructions[${i}]: ${s}`),
       ...checks.map((c) => `  [${c.status.toUpperCase()}] ${c.rule}: ${c.detail}`),
     );
+  } else if (claim.mandateHash) {
+    lines.push(``, `AGENT MANDATE: the order names SHA-256 ${claim.mandateHash}, which Witness does not hold.`);
   }
   lines.push(``, `FINDINGS`);
   for (const f of findings) lines.push(`  [${MARK[f.status]}] ${f.key}: ${f.summary}${f.sources.length ? ` (sources: ${f.sources.join(", ")})` : ""}`);

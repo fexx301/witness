@@ -151,7 +151,7 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
   }
 
   // Code establishes what it can before the model sees anything.
-  const established: Finding[] = [authorizationFinding(mandate, checks), fulfilmentFinding(tracking)];
+  const established: Finding[] = [authorizationFinding(mandate, checks, claim.mandateHash), fulfilmentFinding(tracking)];
   const assessment = await deps.assessor.assess({ claim, mandate, findings: established, tracking, orderDescription });
   const facts = factsFor({ claim, mandate, findings: established, tracking, orderDescription });
   const findings: Finding[] = [

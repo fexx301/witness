@@ -18,7 +18,9 @@ export class RulesAssessor implements Assessor {
         ? authorized
           ? { status: "match", explanation: "The purchase passes the mandate's exact checks.", sources: ["finding.authorization"] }
           : { status: "unclear", explanation: "The mandate's exact checks did not pass.", sources: [] }
-        : { status: "not_applicable", explanation: "No mandate is bound to this order.", sources: [] },
+        : claim.mandateHash
+          ? { status: "unclear", explanation: "The order names a mandate Witness does not hold, so its instructions cannot be checked.", sources: [] }
+          : { status: "not_applicable", explanation: "No mandate is bound to this order.", sources: [] },
       // Without reading the complaint, delivery is the only signal a rules tool has.
       listing_match: delivered
         ? { status: "match", explanation: "The order was delivered.", sources: ["finding.fulfilment"] }

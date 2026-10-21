@@ -77,6 +77,9 @@ describe("mandate", () => {
     const tampered = checkMandate({ ...legacyMandate, scope: { ...legacyMandate.scope, max_amount_usd: "400.00" } }, BOUND_HASH, purchase, accepted);
     expect(tampered.find((c) => c.rule === "integrity")?.status).toBe("fail");
     expect(authorizationFinding(null, []).status).toBe("unknown");
+    // An order that names a mandate Witness does not hold is not an order with no mandate.
+    expect(authorizationFinding(null, []).summary).toMatch(/^No mandate is bound/);
+    expect(authorizationFinding(null, [], BOUND_HASH)).toMatchObject({ status: "unknown", summary: expect.stringMatching(/names mandate .* does not hold/) });
   });
 
   it("stores mandates and lifecycle events by hash only", () => {
@@ -572,6 +575,17 @@ describe("A11 eval harness", () => {
     expect([authorization("C1"), authorization("C4"), authorization("C5"), authorization("C2")]).toEqual(["contradicted", "contradicted", "unknown", "established"]);
     expect(results.find((r) => r.case === "B1")!.findings.fulfilment).toBe("established");
     expect(results.find((r) => r.case === "B4")!.findings.fulfilment).toBe("contradicted");
+  });
+
+  it("binds each case to no mandate or to one the store holds, so no case reads as an unheld mandate", async () => {
+    const { CASES } = await import("../eval/cases.js");
+    const { caseStore, casePayPal } = await import("../eval/harness.js");
+    const store = caseStore(join(mkdtempSync(join(tmpdir(), "witness-eval-")), "mandates"), CASES);
+    for (const c of CASES) {
+      const { client, disputeId } = casePayPal(c);
+      const bound = normalizeDispute(await new Disputes(client).get(disputeId)).mandateHash;
+      expect(bound === undefined || store.find(bound) !== null, c.id).toBe(true);
+    }
   });
 });
 

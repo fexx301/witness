@@ -23,7 +23,15 @@ export interface EvidenceRequestStatus {
 }
 
 // Whether the agent's purchase was authorized by the mandate in force at the time.
-export function authorizationFinding(mandate: Mandate | null, checks: MandateCheck[]): Finding {
+// boundHash is the mandate the order names, if any: naming one Witness does not hold is not the same as naming none.
+export function authorizationFinding(mandate: Mandate | null, checks: MandateCheck[], boundHash?: string): Finding {
+  if (!mandate && boundHash)
+    return {
+      key: "authorization",
+      status: "unknown",
+      summary: `The order names mandate ${boundHash.slice(0, 12)}…, but Witness does not hold that mandate, so agent authorization cannot be checked.`,
+      sources: [],
+    };
   if (!mandate)
     return { key: "authorization", status: "unknown", summary: "No mandate is bound to this order, so agent authorization cannot be established.", sources: [] };
   const sources = checks.map((c) => `mandate_checks.${c.rule}`);

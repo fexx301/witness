@@ -218,7 +218,11 @@ function Mandate() {
             )}
           </>
         ) : (
-          <Muted>No mandate is bound to this order, so the purchase is treated as the buyer's own.</Muted>
+          <Muted>
+            {view.reviewed.claim.mandateHash
+              ? `This order names mandate ${view.reviewed.claim.mandateHash.slice(0, 12)}…, but Witness does not hold it, so the agent's authorization is unknown.`
+              : "No mandate is linked to this order, so the agent's authorization is unknown."}
+          </Muted>
         )
       }
     </WithView>
