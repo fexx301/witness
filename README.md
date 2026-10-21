@@ -36,7 +36,9 @@ Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run aga
    and the instructions, unauthorized claims on the mandate. A valid mandate never on its own means
    "defend". Where Witness finds an *agent* instruction violation but the merchant delivered as listed,
    the merchant's own policy decides whether to refund, offer a return, or review. Anything unestablished
-   becomes a visible gap and a request for evidence, never a silent refund.
+   becomes a visible gap and a request for evidence, never a silent refund. When only the buyer can show
+   what arrived, the request includes a message asking for a photo, written by code, not Claude, and sent
+   only after a person reviews it.
 6. **Act** only through the responses PayPal currently offers (provide evidence, supporting info, message
    and escalate, accept the claim, offer a return). Dry run by default.
 7. **Record** every run: findings, sources, gaps, decision, evidence pack and PayPal debug IDs, in `data/runs/`.
@@ -85,11 +87,14 @@ cd desk && npm install && npm run dev   # the desk on http://localhost:5173
 
 The desk is built on AG Studio:
 
-- **Dispute queue:** KPIs, the queue table and decisions by reason, from live sandbox disputes. AG Studio's
+- **Dispute queue:** KPIs, the queue table (open disputes due soonest first; a dispute's ID opens it) and
+  decisions by reason, from live sandbox disputes. AG Studio's
   own agents built this page from a written brief; it was then hand-tuned and saved as the desk's starting layout.
-- **Investigation:** for the dispute you pick, the buyer's words, the mandate and its checks, a decision
-  trace that says which step Claude did and which code checked, the rules-only decision beside Witness's,
-  exactly what goes to PayPal, and the actions.
+- **Investigation:** a case summary first: what Witness recommends and why, the four facts in plain words
+  (authorized, followed instructions, delivered as listed, delivered), what is missing and who can provide
+  it, the deadline, and one action named for what it sends. Below it: the buyer's words, the mandate and its
+  checks, a decision trace that says which step Claude did and which code checked, the rules-only decision
+  beside Witness's, and exactly what goes to PayPal.
 - **Chat:** the Witness agent and AG Studio's built-in agents, which run on Claude through the Witness API
   (`WITNESS_DESK_MODEL`, Sonnet 5.5 by default). Asked about a dispute, the lead agent hands it to Witness.
 
