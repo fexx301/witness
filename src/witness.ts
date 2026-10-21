@@ -83,7 +83,7 @@ export async function executeReviewed(deps: Deps, reviewed: RunRecord): Promise<
   const mandate = deps.mandates.find(live.mandateHash);
   const files: EvidenceFile[] = [{ filename: `witness-${live.disputeId}.txt`, contentType: "text/plain", data: reviewed.evidencePack }];
   if (mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(mandate, null, 2) });
-  const steps = planSteps(live, reviewed.decision, reviewed.writing, files);
+  const steps = planSteps(live, reviewed.decision, reviewed.writing, files, reviewed.tracking);
   const results = await executeSteps(deps.disputes, live.disputeId, steps);
 
   const now = (deps.now ?? (() => new Date()))();
@@ -174,7 +174,7 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
   const files: EvidenceFile[] = [{ filename: `witness-${claim.disputeId}.txt`, contentType: "text/plain", data: evidencePack }];
   if (mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(mandate, null, 2) });
 
-  const steps = planSteps(claim, decision, writing, files);
+  const steps = planSteps(claim, decision, writing, files, tracking);
   const results = options.execute ? await executeSteps(deps.disputes, claim.disputeId, steps) : [];
 
   const record: RunRecord = {

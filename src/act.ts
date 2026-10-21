@@ -3,10 +3,11 @@
 
 import type { Claim } from "./claim.js";
 import { gapFinding, type Decision, type Writing } from "./decide.js";
-import type { Disputes, EvidenceFile } from "./paypal/disputes.js";
+import type { Disputes, EvidenceFile, TrackingInfo } from "./paypal/disputes.js";
+import type { Tracking } from "./paypal/orders.js";
 
 export type Step =
-  | { kind: "provide_evidence"; notes: string; files: EvidenceFile[] }
+  | { kind: "provide_evidence"; evidenceType: string; notes: string; files: EvidenceFile[]; trackingInfo?: TrackingInfo[] }
   | { kind: "provide_supporting_info"; notes: string; files: EvidenceFile[] }
   | { kind: "send_message"; message: string }
   | { kind: "escalate"; note: string }
@@ -21,7 +22,24 @@ const clip = (text: string) => text.slice(0, 2000);
 export const ASK_WHAT_ARRIVED =
   "Thank you for contacting us about this order. So we can check what arrived, please reply with a photo of the item you received that shows its label, including any size, flavour or other variant details.";
 
-export function planSteps(claim: Claim, decision: Decision, writing: Writing, files: EvidenceFile[]): Step[] {
+// Carriers PayPal names in its carrier_name enum, of those a demo merchant is likely to use.
+const PAYPAL_CARRIERS = new Set(["UPS", "USPS", "FEDEX", "DHL", "ROYAL_MAIL", "PARCELFORCE", "TNT", "CA_CANADA_POST"]);
+const trackingInfoFor = (t: Tracking): TrackingInfo => {
+  const carrier = (t.carrier ?? "").toUpperCase();
+  return PAYPAL_CARRIERS.has(carrier)
+    ? { carrier_name: carrier, tracking_number: t.trackingNumber }
+    : { carrier_name: "OTHER", carrier_name_other: t.carrier || "not recorded", tracking_number: t.trackingNumber };
+};
+
+// PayPal's evidence types depend on the reason: a not-received claim takes proof of fulfilment, which the
+// delivered trackers supply on their own; the other reasons take notes and documents as OTHER.
+function evidenceStep(claim: Claim, notes: string, files: EvidenceFile[], tracking: Tracking[]): Step {
+  if (claim.reason === "MERCHANDISE_OR_SERVICE_NOT_RECEIVED")
+    return { kind: "provide_evidence", evidenceType: "PROOF_OF_FULFILLMENT", notes, files: [], trackingInfo: tracking.filter((t) => t.status === "DELIVERED").map(trackingInfoFor) };
+  return { kind: "provide_evidence", evidenceType: "OTHER", notes, files };
+}
+
+export function planSteps(claim: Claim, decision: Decision, writing: Writing, files: EvidenceFile[], tracking: Tracking[] = []): Step[] {
   const notes = clip(writing.evidenceNotes);
   const reason = decision.why[0] ?? decision.action;
   switch (decision.action) {
@@ -49,7 +67,7 @@ export function planSteps(claim: Claim, decision: Decision, writing: Writing, fi
         ];
       return [{ kind: "none", reason: "Return proposed, but PayPal does not offer a return response on this dispute right now." }];
     case "defend":
-      if (claim.actions.has("provide_evidence")) return [{ kind: "provide_evidence", notes, files }];
+      if (claim.actions.has("provide_evidence")) return [evidenceStep(claim, notes, files, tracking)];
       if (claim.actions.has("provide_supporting_info")) return [{ kind: "provide_supporting_info", notes, files }];
       if (claim.stage === "INQUIRY" && claim.actions.has("send_message")) {
         const steps: Step[] = [{ kind: "send_message", message: clip(writing.buyerMessage) }];
@@ -74,7 +92,7 @@ export async function executeSteps(disputes: Disputes, disputeId: string, steps:
       let debugId: string | null | undefined;
       switch (step.kind) {
         case "provide_evidence":
-          ({ debugId } = await disputes.provideEvidence(disputeId, step.notes, step.files));
+          ({ debugId } = await disputes.provideEvidence(disputeId, step, step.files));
           break;
         case "provide_supporting_info":
           ({ debugId } = await disputes.provideSupportingInfo(disputeId, step.notes, step.files));

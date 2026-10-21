@@ -64,6 +64,8 @@ export interface Step {
   reason?: string;
   acceptClaimType?: string;
   offerType?: string;
+  evidenceType?: string;
+  trackingInfo?: { carrier_name: string; carrier_name_other?: string; tracking_number: string }[];
 }
 export interface Decision {
   action: string;

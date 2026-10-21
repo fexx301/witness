@@ -415,7 +415,13 @@ function Outgoing() {
                 <p style={{ margin: "0 0 2px", fontWeight: 600 }}>
                   {STEP_LABEL[step.kind] ?? step.kind}
                   {step.acceptClaimType ? ` (${step.acceptClaimType.toLowerCase().replaceAll("_", " ")})` : ""}
+                  {step.evidenceType ? ` (${step.evidenceType.toLowerCase().replaceAll("_", " ")})` : ""}
                 </p>
+                {step.trackingInfo?.map((t) => (
+                  <Muted key={t.tracking_number}>
+                    Tracking: {t.carrier_name_other ?? t.carrier_name} {t.tracking_number}
+                  </Muted>
+                ))}
                 {stepText(step) && <pre style={{ margin: 0, padding: 8, borderRadius: 6, background: "#F4F5F7", whiteSpace: "pre-wrap", font: "12px/1.45 Inter, Arial, sans-serif" }}>{stepText(step)}</pre>}
               </div>
             ))}

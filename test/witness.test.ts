@@ -357,7 +357,16 @@ describe("planning", () => {
 
   it("uses only the response PayPal offers right now", () => {
     const evidence = claim({ actions: new Set(["provide_evidence", "accept_claim"]), acceptClaimTypes: ["REFUND", "REFUND_WITH_RETURN"] });
-    expect(planSteps(evidence, decision("defend"), writing, files).map((s) => s.kind)).toEqual(["provide_evidence"]);
+    expect(planSteps(evidence, decision("defend"), writing, files)).toEqual([{ kind: "provide_evidence", evidenceType: "OTHER", notes: "notes", files }]);
+    // A carrier outside PayPal's list is named in carrier_name_other.
+    const notReceivedClaim = claim({ reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED", actions: new Set(["provide_evidence"]) });
+    const shipped = [
+      { trackingNumber: "1Z1", status: "DELIVERED", carrier: "Evri" },
+      { trackingNumber: "1Z2", status: "SHIPPED", carrier: "USPS" },
+    ];
+    expect(planSteps(notReceivedClaim, decision("defend"), writing, files, shipped)).toEqual([
+      { kind: "provide_evidence", evidenceType: "PROOF_OF_FULFILLMENT", notes: "notes", files: [], trackingInfo: [{ carrier_name: "OTHER", carrier_name_other: "Evri", tracking_number: "1Z1" }] },
+    ]);
     expect(planSteps(evidence, decision("refund"), writing, files).map((s) => s.kind)).toEqual(["accept_claim"]);
     expect(planSteps(evidence, decision("propose_return"), writing, files)[0]).toMatchObject({ kind: "accept_claim", acceptClaimType: "REFUND_WITH_RETURN" });
 
@@ -408,6 +417,8 @@ describe("claim", () => {
 // the order's tracker says SHIPPED and only the v1 tracking API can say DELIVERED.
 function fakePayPal(trackerStatus: string | null = "SHIPPED") {
   const writes: { path: string; contentType: string }[] = [];
+  // The JSON part of each multipart write, as PayPal would read it.
+  const inputs: unknown[] = [];
   const order = fixture<Order>("order-inr.json");
   const routes: Record<string, unknown> = {
     ...(trackerStatus ? { "/v1/shipping/trackers/9E839789UG349854R-9400111899223197428490": { status: trackerStatus, carrier: "USPS" } } : {}),
@@ -427,12 +438,13 @@ function fakePayPal(trackerStatus: string | null = "SHIPPED") {
     if (path === "/v1/oauth2/token") return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }));
     if (init?.method === "POST") {
       writes.push({ path, contentType: init.body instanceof FormData ? "multipart" : "json" });
+      if (init.body instanceof FormData) inputs.push(JSON.parse(await (init.body.get("input") as Blob).text()));
       return new Response(JSON.stringify({}), { headers: { "paypal-debug-id": "dbg1" } });
     }
     const body = routes[path];
     return body ? new Response(JSON.stringify(body)) : new Response(JSON.stringify({ details: [{ issue: "INVALID_RESOURCE_ID" }] }), { status: 404 });
   }) as typeof fetch;
-  return { client: new PayPalClient({ clientId: "id", clientSecret: "secret", env: "sandbox" }, fetchImpl), writes, routes };
+  return { client: new PayPalClient({ clientId: "id", clientSecret: "secret", env: "sandbox" }, fetchImpl), writes, inputs, routes };
 }
 
 const notReceived: Assessor = {
@@ -482,7 +494,7 @@ describe("pipeline", () => {
   });
 
   it("defends with evidence once delivery is recorded, and only when told to act", async () => {
-    const { client, writes } = fakePayPal("DELIVERED");
+    const { client, writes, inputs } = fakePayPal("DELIVERED");
     const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
     const dry = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: false });
     expect(dry.decision).toMatchObject({ action: "defend", basis: "facts" });
@@ -490,6 +502,18 @@ describe("pipeline", () => {
     const live = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: true });
     expect(live.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
     expect(writes).toEqual([{ path: "/v1/customer/disputes/PP-R-SSN-10190213/provide-evidence", contentType: "multipart" }]);
+    // Not received takes proof of fulfilment: the delivered tracker, with no text file attached.
+    expect(inputs).toEqual([
+      {
+        evidences: [
+          {
+            evidence_type: "PROOF_OF_FULFILLMENT",
+            notes: expect.any(String),
+            evidence_info: { tracking_info: [{ carrier_name: "USPS", tracking_number: "9400111899223197428490" }] },
+          },
+        ],
+      },
+    ]);
     expect(readdirSync(runsDir)).toHaveLength(2);
   });
 
