@@ -1,7 +1,7 @@
-// The investigation page's widgets: the dispute picker, what the buyer said, the mandate, the
-// decision trace, the rules-only comparison, what goes to PayPal, and the actions. Every step says
-// who did it - Claude, code, the merchant's policy or PayPal - in words as well as colour, and only
-// what code actually checked is called checked.
+// The investigation page's widgets: the dispute picker, the case summary with its actions, what the
+// buyer said, the mandate, the decision trace, the rules-only comparison, and what goes to PayPal. The
+// summary speaks the merchant's language; the detail panels keep the audit trail, where every step says
+// who did it - Claude, code, the merchant's policy or PayPal - and only what code checked is called checked.
 import type { AgDefaultWidgetDefinition, AgWidgetField, AgWidgetsConfig } from "ag-studio";
 import { createWidgets, type AgRegistry, type AgWidgetDefinition } from "ag-studio-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -143,11 +143,11 @@ function WithView({ title, children }: { title: string; children: (view: Investi
 const finding = (view: InvestigationView, key: string): Finding | undefined => view.reviewed.findings.find((f) => f.key === key);
 const stepText = (step: Step) => step.notes ?? step.message ?? step.note ?? step.reason ?? "";
 
-// Why nothing is sent, in one line; the missing evidence itself is listed in the decision trace.
+// Why nothing is sent, in one line.
 function nothingSent(view: InvestigationView): string {
   const { decision, claim, steps } = view.reviewed;
   if (claim.outcome) return "The dispute is resolved; there is nothing to send.";
-  if (decision.action === "request_evidence") return `Nothing is sent: Witness needs ${decision.gaps.length} more piece(s) of evidence first. See How Witness decided.`;
+  if (decision.action === "request_evidence") return "Nothing is sent yet: Witness needs more evidence first.";
   if (decision.action === "review") return "Nothing is sent: this case goes to a person to review.";
   return steps[0]?.reason ?? "This decision sends nothing to PayPal.";
 }
@@ -191,8 +191,12 @@ function Picker() {
           }}
         >
           <strong>{row.disputeId}</strong>
-          <span style={{ display: "block", color: MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {row.reason} · ${row.amountUsd.toFixed(2)} · {sentence(row.paypalStatus)} · Witness: {ACTION_LABEL[row.witnessDecision] ?? row.witnessDecision}
+          <span style={{ display: "block", color: MUTED }}>
+            {row.reason} · ${row.amountUsd.toFixed(2)}
+          </span>
+          <span style={{ display: "block", color: MUTED }}>
+            {!row.outcome && row.responseDue ? `Respond by ${when(row.responseDue)}` : sentence(row.outcome || row.paypalStatus)} · Witness:{" "}
+            {ACTION_LABEL[row.witnessDecision] ?? row.witnessDecision}
           </span>
         </button>
       ))}
@@ -463,7 +467,82 @@ function ActionButton({ onClick, disabled, primary, children }: { onClick: () =>
   );
 }
 
-function Actions() {
+// The case summary: what Witness recommends and why, the facts behind it, and the one next action.
+const RECOMMENDATION: Record<string, string> = {
+  refund: "Refund",
+  propose_return: "Offer a return and refund",
+  defend: "Defend",
+  request_evidence: "Ask for evidence",
+  review: "Send to a person",
+};
+const POLICY_VERB: Record<string, string> = { refund: "refund", propose_return: "offer a return", review: "send the case to a person" };
+// For each PayPal reason, the findings that trigger the merchant's policy, in the order src/decide.ts checks them.
+const POLICY_TRIGGERS: Record<string, [string, string][]> = {
+  MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED: [
+    ["listing_match", "the merchant delivered something other than the listing"],
+    ["instruction_compliance", "the agent broke the buyer's instructions and the merchant delivered what was ordered"],
+  ],
+  MERCHANDISE_OR_SERVICE_NOT_RECEIVED: [["fulfilment", "the order was not delivered"]],
+  UNAUTHORISED: [
+    ["authorization", "the purchase broke the buyer's mandate"],
+    ["instruction_compliance", "the agent broke the buyer's instructions"],
+  ],
+};
+
+function decisionReason(view: InvestigationView): string {
+  const { decision, claim } = view.reviewed;
+  if (decision.basis === "merchant_policy") {
+    const trigger = POLICY_TRIGGERS[claim.reason]?.find(([key]) => finding(view, key)?.status === "contradicted");
+    return `Your policy is to ${POLICY_VERB[decision.action] ?? decision.action} when ${trigger?.[1] ?? "this happens"}.`;
+  }
+  if (decision.basis === "facts") return "The records support your side of this dispute.";
+  if (decision.action === "review") return "Witness does not handle this kind of claim on its own.";
+  return "Witness can't decide yet: some of the facts below are not established.";
+}
+
+// The four facts, in the order the purchase happened: authorized, bought, delivered as listed, delivered.
+const FACT_ORDER = ["authorization", "instruction_compliance", "listing_match", "fulfilment"];
+const FACT: Record<string, Partial<Record<string, string>>> = {
+  authorization: { established: "The buyer authorized this purchase", contradicted: "The purchase broke the buyer's mandate" },
+  instruction_compliance: {
+    established: "The agent followed the buyer's instructions",
+    contradicted: "The agent broke the buyer's instructions",
+    unknown: "Can't tell whether the agent followed the buyer's instructions",
+  },
+  listing_match: { established: "The merchant delivered what was ordered", contradicted: "The merchant delivered something other than the listing", unknown: "Can't tell what was delivered" },
+  fulfilment: { established: "Delivered", contradicted: "Not delivered", unknown: "Delivery is not confirmed" },
+};
+const FOUND_BY: Record<string, Tone> = { authorization: ACTOR.code, instruction_compliance: ACTOR.claude, listing_match: ACTOR.claude, fulfilment: ACTOR.code };
+const MARK: Record<string, { symbol: string; fg: string }> = {
+  established: { symbol: "✓", fg: GOOD.fg },
+  contradicted: { symbol: "✗", fg: BAD.fg },
+  unknown: { symbol: "?", fg: MUTED },
+};
+
+// One fact in words; the finding's own text and its sources open underneath. What went wrong starts open.
+function Fact({ view, findingKey }: { view: InvestigationView; findingKey: string }) {
+  const f = finding(view, findingKey);
+  if (!f || f.status === "not_applicable") return null;
+  const unheld = view.reviewed.claim.mandateHash ? "Witness does not hold the mandate this order names" : "No mandate is linked to this order";
+  const text = findingKey === "authorization" && f.status === "unknown" ? unheld : (FACT[findingKey]?.[f.status] ?? f.summary);
+  const mark = MARK[f.status] ?? MARK.unknown!;
+  return (
+    <details open={f.status === "contradicted"} style={{ margin: "0 0 6px" }}>
+      <summary style={{ cursor: "pointer" }}>
+        <span aria-hidden style={{ display: "inline-block", width: 14, fontWeight: 700, color: mark.fg }}>
+          {mark.symbol}
+        </span>{" "}
+        {text} <Chip tone={FOUND_BY[findingKey] ?? ACTOR.code} />
+      </summary>
+      <div style={{ margin: "4px 0 0 18px" }}>
+        {readable(f.summary)}
+        {f.sources.length > 0 && <Muted>Sources: {f.sources.map(sourceLabel).join(", ")}.</Muted>}
+      </div>
+    </details>
+  );
+}
+
+function Case() {
   const disputeId = useSelectedDispute();
   const loaded = useInvestigation(disputeId);
   const row = useRows()?.find((r) => r.disputeId === disputeId);
@@ -474,7 +553,7 @@ function Actions() {
     setConfirming(false);
     setMessage(null);
   }, [disputeId]);
-  if (!disputeId) return <Frame title="Actions">{<Muted>Pick a dispute.</Muted>}</Frame>;
+  if (!disputeId) return <Frame title="Case">{<Muted>Pick a dispute.</Muted>}</Frame>;
 
   const view = loaded.state === "ready" ? loaded.view : null;
   const sendable = view ? view.reviewed.steps.filter((s) => s.kind !== "none") : [];
@@ -491,30 +570,65 @@ function Actions() {
       setConfirming(false);
     }
   };
+  const amount = row ? `$${row.amountUsd.toFixed(2)}` : view ? `$${view.reviewed.claim.amount.value.toFixed(2)}` : "";
+  const action = view?.reviewed.decision.action;
+  const rules = view?.baseline?.decision.action;
 
   return (
-    <Frame title={`Actions for ${disputeId}`}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <ActionButton disabled={busy !== null} onClick={() => run("investigating", async () => (await investigate(disputeId), "Investigation finished."))}>
-          {busy === "investigating" ? "Investigating… (about 20 s)" : view ? "Investigate again" : "Investigate"}
-        </ActionButton>
-        <ActionButton primary disabled={!canSend || busy !== null} onClick={() => setConfirming(true)}>
-          {view?.executed ? "Sent to PayPal" : reviewLabel(sendable)}
-        </ActionButton>
+    <Frame title={disputeId}>
+      <p style={{ margin: "-6px 0 10px", color: MUTED }}>
+        {[row?.reason, amount].filter(Boolean).join(" · ")}
+        {row && (!row.outcome && row.responseDue ? <strong style={{ color: INK }}> · Respond by {when(row.responseDue)}</strong> : ` · PayPal: ${sentence(row.outcome || row.paypalStatus)}`)}
+      </p>
+      {loaded.state === "loading" && <Muted>Loading…</Muted>}
+      {loaded.state === "missing" && <Muted>Not investigated yet.</Muted>}
+      {loaded.state === "error" && <Muted>Could not load the investigation: {loaded.message}</Muted>}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 5fr) minmax(0, 6fr)", gap: 20 }}>
+        <section>
+          {view && action && (
+            <>
+              <p style={{ margin: "0 0 4px", color: MUTED, fontSize: 12 }}>Witness recommends</p>
+              <p style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 700, lineHeight: 1.2 }}>
+                {RECOMMENDATION[action] ?? action}
+                {action === "refund" || action === "propose_return" ? ` ${amount}` : ""}
+              </p>
+              <p style={{ margin: "0 0 4px" }}>{decisionReason(view)}</p>
+              {view.reviewed.decision.basis === "merchant_policy" && <Muted>Policy: {view.reviewed.policy}</Muted>}
+              {rules && rules !== action && (
+                <p style={{ margin: "6px 0 0" }}>
+                  A rules-only tool would have chosen <strong>{ACTION_LABEL[rules] ?? rules}</strong>: it can't read the buyer's words or compare their instructions with what was bought.
+                </p>
+              )}
+            </>
+          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "12px 0 4px" }}>
+            {view && (
+              <ActionButton primary disabled={!canSend || busy !== null} onClick={() => setConfirming(true)}>
+                {view.executed ? "Sent to PayPal" : reviewLabel(sendable)}
+              </ActionButton>
+            )}
+            <ActionButton disabled={busy !== null} onClick={() => run("investigating", async () => (await investigate(disputeId), "Investigation finished."))}>
+              {busy === "investigating" ? "Investigating… (about 20 s)" : view ? "Investigate again" : "Investigate"}
+            </ActionButton>
+          </div>
+          {view && <Muted>Investigated {when(view.reviewed.ranAt)}</Muted>}
+          {view && !canSend && !view.executed && <Muted>{nothingSent(view)}</Muted>}
+          {view?.executed && <Muted>Sent to PayPal {when(view.executed.ranAt)}.</Muted>}
+          {view && !view.executed && view.lastSent && <Muted>An earlier investigation was sent to PayPal {when(view.lastSent.ranAt)}.</Muted>}
+        </section>
         {view && (
-          <span style={{ color: MUTED }}>
-            Investigated {when(view.reviewed.ranAt)}
-            {row && ` · PayPal now: ${sentence(row.outcome || row.paypalStatus)}`}
-          </span>
+          <section>
+            <p style={{ margin: "0 0 6px", fontWeight: 600 }}>What Witness found</p>
+            {FACT_ORDER.map((key) => (
+              <Fact key={key} view={view} findingKey={key} />
+            ))}
+          </section>
         )}
       </div>
-      {view && !canSend && !view.executed && <Muted>{nothingSent(view)}</Muted>}
-      {view?.executed && <Muted>Sent to PayPal {when(view.executed.ranAt)}.</Muted>}
-      {view && !view.executed && view.lastSent && <Muted>An earlier investigation was sent to PayPal {when(view.lastSent.ranAt)}.</Muted>}
       {confirming && view && (
         <div role="dialog" aria-label="Confirm sending to PayPal" style={{ marginTop: 10, padding: 10, borderRadius: 6, border: "1px solid #2457D6", background: "#EEF3FD" }}>
           <p style={{ margin: "0 0 6px" }}>
-            This sends exactly the reviewed investigation above to PayPal. No new AI assessment is made. It will:
+            This sends exactly the reviewed investigation to PayPal. No new AI assessment is made. It will:
           </p>
           <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
             {sendable.map((s, index) => (
@@ -546,7 +660,7 @@ function Actions() {
   );
 }
 
-const WIDGET_IDS = ["witness-picker", "witness-actions", "witness-claim", "witness-baseline", "witness-mandate", "witness-trace", "witness-outgoing"] as const;
+const WIDGET_IDS = ["witness-picker", "witness-case", "witness-claim", "witness-baseline", "witness-mandate", "witness-trace", "witness-outgoing"] as const;
 type WitnessWidgetId = (typeof WIDGET_IDS)[number];
 
 const define = (id: WitnessWidgetId, label: string, comp: () => ReactNode, width: number, height: number): AgWidgetDefinition<WitnessWidgetId> => ({
@@ -562,7 +676,7 @@ const define = (id: WitnessWidgetId, label: string, comp: () => ReactNode, width
 
 const DEFINITIONS = [
   define("witness-picker", "Disputes", Picker, 9, 12),
-  define("witness-actions", "Actions", Actions, 15, 12),
+  define("witness-case", "Case", Case, 18, 22),
   define("witness-claim", "The claim", Claim, 8, 16),
   define("witness-baseline", "Rules-only vs Witness", Baseline, 8, 16),
   define("witness-mandate", "The buyer's mandate", Mandate, 8, 16),
