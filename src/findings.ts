@@ -42,7 +42,8 @@ export function authorizationFinding(mandate: Mandate | null, checks: MandateChe
   return { key: "authorization", status: "established", summary: "The purchase is inside the mandate that was in force when it was made.", sources };
 }
 
-const NOT_DELIVERED_CARRIER = new Set(["LOST", "RETURNED_TO_SENDER", "UNDELIVERABLE"]);
+// PayPal tracking statuses that mean the parcel did not reach the buyer (from its tracking_status enum).
+const NOT_DELIVERED = new Set(["CANCELLED", "RETURNED", "INRETURN", "DELIVERY_FAILED", "PICKUP_FAILED"]);
 
 // Delivery is established only by a delivered status. Shipped is not delivered,
 // and an absent record is not evidence of non-delivery.
@@ -50,15 +51,15 @@ export function fulfilmentFinding(tracking: Tracking[]): Finding {
   if (!tracking.length)
     return { key: "fulfilment", status: "unknown", summary: "The order has no shipment tracking.", sources: [] };
   const sources = tracking.map((_, index) => `shipment_tracking[${index}]`);
-  const delivered = tracking.findIndex((t) => t.status === "DELIVERED" || t.carrierStatus === "DELIVERED");
+  const delivered = tracking.findIndex((t) => t.status === "DELIVERED");
   if (delivered >= 0)
     return { key: "fulfilment", status: "established", summary: `Shipment ${tracking[delivered]!.trackingNumber} is recorded as delivered.`, sources };
-  const failed = tracking.find((t) => t.status === "CANCELLED" || NOT_DELIVERED_CARRIER.has(t.carrierStatus ?? ""));
+  const failed = tracking.find((t) => NOT_DELIVERED.has(t.status));
   if (failed)
     return {
       key: "fulfilment",
       status: "contradicted",
-      summary: `Shipment ${failed.trackingNumber} was not delivered (${failed.carrierStatus ?? failed.status}).`,
+      summary: `Shipment ${failed.trackingNumber} was not delivered (${failed.status}).`,
       sources,
     };
   return {

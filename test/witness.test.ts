@@ -165,7 +165,8 @@ describe("findings", () => {
     expect(fulfilmentFinding([{ trackingNumber: "1", status: "DELIVERED" }]).status).toBe("established");
     expect(fulfilmentFinding([{ trackingNumber: "1", status: "SHIPPED" }]).status).toBe("unknown");
     expect(fulfilmentFinding([]).status).toBe("unknown");
-    expect(fulfilmentFinding([{ trackingNumber: "1", status: "SHIPPED", carrierStatus: "RETURNED_TO_SENDER" }]).status).toBe("contradicted");
+    for (const status of ["RETURNED", "DELIVERY_FAILED", "CANCELLED"]) expect(fulfilmentFinding([{ trackingNumber: "1", status }]).status).toBe("contradicted");
+    expect(fulfilmentFinding([{ trackingNumber: "1", status: "IN_TRANSIT" }]).status).toBe("unknown");
   });
 
   it("treats PayPal evidence requests as requirements to check, not facts", () => {

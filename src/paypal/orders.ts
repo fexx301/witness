@@ -35,10 +35,8 @@ export interface Tracking {
   // "<capture id>-<tracking number>", the id both the order and the v1 tracking API use.
   trackerId?: string;
   trackingNumber: string;
-  // PayPal tracker status set by the merchant: SHIPPED, ON_HOLD, DELIVERED, CANCELLED.
+  // PayPal's tracking_status: SHIPPED, IN_TRANSIT, DELIVERED, RETURNED, DELIVERY_FAILED and so on.
   status: string;
-  // A carrier's own confirmation, when one is available (e.g. LOST, RETURNED_TO_SENDER).
-  carrierStatus?: string;
 }
 
 export class Orders {
