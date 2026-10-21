@@ -35,6 +35,10 @@ export function authorizationFinding(mandate: Mandate | null, checks: MandateChe
   if (!mandate)
     return { key: "authorization", status: "unknown", summary: "No mandate is bound to this order, so agent authorization cannot be established.", sources: [] };
   const sources = checks.map((c) => `mandate_checks.${c.rule}`);
+  // A stored mandate that no longer hashes to the order's hash cannot be read either way: the other
+  // checks ran against an untrusted document, so this is unknown, not a refusal of consent.
+  const integrity = checks.find((c) => c.rule === "integrity" && c.status === "fail");
+  if (integrity) return { key: "authorization", status: "unknown", summary: integrity.detail, sources };
   const failed = checks.filter((c) => c.status === "fail");
   if (failed.length) return { key: "authorization", status: "contradicted", summary: failed.map((c) => c.detail).join(" "), sources };
   const unknown = checks.filter((c) => c.status === "unknown");

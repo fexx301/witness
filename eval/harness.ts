@@ -23,6 +23,10 @@ export const EVAL_POLICY: MerchantPolicy = {
 const MERCHANT = "7ZCSEN3JAJJPG";
 const BUYER = { email: "buyer@example.com", payer_id: "EVALBUYER01", name: "Test Buyer" };
 
+// Each recorded acceptance is linked to the PayPal order the buyer approved when accepting, as on the
+// acceptance page; casePayPal serves that order. The predeclared cases themselves are unchanged.
+const approvalOrder = (c: EvalCase) => `EVALAPPROVAL${c.id}`;
+
 // One mandate per case, so each case's lifecycle stands alone.
 export function caseMandate(c: EvalCase): Mandate | null {
   if (!c.mandate) return null;
@@ -43,7 +47,8 @@ export function caseStore(dir: string, cases: EvalCase[]): MandateStore {
     const mandate = caseMandate(c);
     if (!mandate) continue;
     const hash = store.save(mandate);
-    if (!store.lifecycle(hash).length) for (const event of c.mandate!.lifecycle ?? ACCEPTED) store.record(hash, event);
+    if (!store.lifecycle(hash).length)
+      for (const event of c.mandate!.lifecycle ?? ACCEPTED) store.record(hash, event.event === "accepted" ? { ...event, paypal_order: approvalOrder(c) } : event);
   }
   return store;
 }
@@ -102,8 +107,18 @@ export function casePayPal(c: EvalCase): { client: PayPalClient; disputeId: stri
       },
     ],
   };
+  // The order the disputing buyer approved when accepting the mandate, captured at the acceptance time.
+  const acceptedAt = (c.mandate?.lifecycle ?? ACCEPTED).filter((e) => e.event === "accepted").at(-1)?.at;
+  const approval = {
+    id: approvalOrder(c),
+    status: "COMPLETED",
+    payer: { payer_id: BUYER.payer_id },
+    purchase_units: [{ custom_id: capture.custom_id, payments: { captures: [{ id: `${approvalOrder(c)}CAP`, status: "COMPLETED", create_time: acceptedAt }] } }],
+    payment_source: { paypal: { attributes: { vault: { id: `EVALVAULT${c.id}`, status: "VAULTED" } } } },
+  };
   // As in the real API, only the v1 tracking API can say DELIVERED.
   const routes: Record<string, unknown> = {
+    ...(acceptedAt ? { [`/v2/checkout/orders/${approvalOrder(c)}`]: approval } : {}),
     [`/v1/customer/disputes/${disputeId}`]: dispute,
     [`/v2/payments/captures/${captureId}`]: capture,
     [`/v2/checkout/orders/${orderId}`]: order,

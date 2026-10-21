@@ -67,6 +67,23 @@ describe("mandate", () => {
     expect(mandateStatusAt(legacyMandate, accepted, "2027-02-01T00:00:00Z").status).toBe("expired");
   });
 
+  it("reads the lifecycle in time order and treats unreadable times as unknown, never in force", () => {
+    const at = purchase.purchasedAt;
+    const reaccepted: LifecycleEvent[] = [
+      { event: "accepted", at: "2026-09-01T00:00:00Z" },
+      { event: "revoked", at: "2026-09-10T00:00:00Z" },
+      { event: "accepted", at: "2026-09-20T00:00:00Z" },
+    ];
+    expect(mandateStatusAt(legacyMandate, reaccepted, at).status).toBe("in_force");
+    // File order does not matter.
+    expect(mandateStatusAt(legacyMandate, [...reaccepted].reverse(), at).status).toBe("in_force");
+    expect(mandateStatusAt(legacyMandate, [...reaccepted, { event: "revoked", at: "2026-09-30T00:00:00Z" }], at).status).toBe("revoked");
+    expect(mandateStatusAt(legacyMandate, accepted, "not-a-date").status).toBe("unknown");
+    expect(mandateStatusAt(legacyMandate, [...accepted, { event: "revoked", at: "garbage" }], at).status).toBe("unknown");
+    expect(mandateStatusAt({ ...legacyMandate, valid_until: "garbage" }, accepted, at).status).toBe("unknown");
+    expect(mandateStatusAt({ ...legacyMandate, valid_until: "2026-10-01T12:00:00Z" }, accepted, at).status).toBe("expired");
+  });
+
   it("establishes authorization only when every exact check passes", () => {
     const ok = authorizationFinding(mandateWithMerchant, checkMandate(mandateWithMerchant, mandateHash(mandateWithMerchant), purchase, accepted));
     expect(ok.status).toBe("established");
@@ -74,8 +91,13 @@ describe("mandate", () => {
     expect(noAcceptance.status).toBe("unknown");
     const overCap = authorizationFinding(legacyMandate, checkMandate(legacyMandate, BOUND_HASH, { ...purchase, amountUsd: 55 }, accepted));
     expect(overCap.status).toBe("contradicted");
-    const tampered = checkMandate({ ...legacyMandate, scope: { ...legacyMandate.scope, max_amount_usd: "400.00" } }, BOUND_HASH, purchase, accepted);
+    const edited = { ...legacyMandate, scope: { ...legacyMandate.scope, max_amount_usd: "400.00" } };
+    const tampered = checkMandate(edited, BOUND_HASH, purchase, accepted);
     expect(tampered.find((c) => c.rule === "integrity")?.status).toBe("fail");
+    // A stored file that no longer matches the order is unreadable evidence, not a refusal of consent.
+    expect(authorizationFinding(edited, tampered).status).toBe("unknown");
+    // An unreadable amount is unknown, never "exceeds the cap".
+    expect(checkMandate(legacyMandate, BOUND_HASH, { ...purchase, amountUsd: Number.NaN }, accepted).find((c) => c.rule === "amount")?.status).toBe("unknown");
     expect(authorizationFinding(null, []).status).toBe("unknown");
     // An order that names a mandate Witness does not hold is not an order with no mandate.
     expect(authorizationFinding(null, []).summary).toMatch(/^No mandate is bound/);
@@ -485,6 +507,16 @@ describe("pipeline", () => {
     pipeline.mandates.record(BOUND_HASH, { event: "accepted", at: "2026-10-02T01:56:35Z", paypal_order: "56268850E1823301N" });
     const record = await processDispute(pipeline, "PP-R-SSN-10190213", { execute: false });
     expect(record.checks.find((c) => c.rule === "paypal_approval")).toMatchObject({ status: "pass" });
+  });
+
+  it("does not establish authorization from an acceptance only Witness recorded", async () => {
+    const { client } = fakePayPal("DELIVERED");
+    const pipeline = deps(client, mkdtempSync(join(tmpdir(), "witness-runs-")));
+    pipeline.mandates.save(legacyMandate);
+    pipeline.mandates.record(BOUND_HASH, { event: "accepted", at: "2026-10-02T01:56:35Z", channel: "recorded by script" });
+    const record = await processDispute(pipeline, "PP-R-SSN-10190213", { execute: false });
+    expect(record.checks.find((c) => c.rule === "paypal_approval")).toMatchObject({ status: "unknown", detail: expect.stringMatching(/not linked to a PayPal approval/) });
+    expect(record.findings.find((f) => f.key === "authorization")?.status).toBe("unknown");
   });
 
   it("keeps the order's tracker status when the v1 tracking lookup fails", async () => {

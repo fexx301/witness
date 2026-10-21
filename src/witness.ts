@@ -166,6 +166,9 @@ async function establish(deps: Deps, claim: Claim) {
       () => null,
     );
     checks.push(checkPayPalApproval(approval, claim.mandateHash!, claim.buyerPayerId, capture?.create_time));
+  } else if (mandate && deps.mandates.lifecycle(claim.mandateHash!).some((e) => e.event === "accepted")) {
+    // An acceptance only Witness recorded is not the buyer's PayPal-backed approval, so it cannot establish authorization.
+    checks.push({ rule: "paypal_approval", status: "unknown", detail: "The buyer's acceptance is recorded by Witness only; it is not linked to a PayPal approval." });
   }
 
   return { capture, tracking, orderDescription, mandate, checks, findings: [authorizationFinding(mandate, checks, claim.mandateHash), fulfilmentFinding(tracking)] };

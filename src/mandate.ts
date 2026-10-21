@@ -62,24 +62,28 @@ export type LifecycleEvent = z.infer<typeof LifecycleEventSchema>;
 
 export type MandateStatus = "in_force" | "not_yet_accepted" | "superseded" | "revoked" | "expired" | "unknown";
 
-// Which state the mandate was in at a given moment. Only Witness's own recorded
-// events count; a mandate's self-declared approved_at is not acceptance evidence.
+// Which state the mandate was in at a given moment. Only Witness's own recorded events count; a
+// mandate's self-declared approved_at is not acceptance evidence. Events are read in time order, and
+// the last acceptance, revocation or replacement before the purchase decides; an unreadable time
+// makes the state unknown rather than in force.
+const time = (iso: string) => new Date(iso).getTime();
+
 export function mandateStatusAt(mandate: Mandate, events: LifecycleEvent[], at: string | undefined): { status: MandateStatus; detail: string } {
-  if (!at) return { status: "unknown", detail: "Purchase time unavailable, so the mandate version in force cannot be established." };
-  const when = new Date(at).getTime();
-  const accepted = events.find((e) => e.event === "accepted");
-  if (!accepted) return { status: "unknown", detail: "No recorded acceptance of this mandate by the buyer." };
-  if (new Date(accepted.at).getTime() > when)
-    return { status: "not_yet_accepted", detail: `Accepted ${accepted.at}, after the purchase at ${at}.` };
-  const ended = events
-    .filter((e) => (e.event === "revoked" || e.event === "superseded") && new Date(e.at).getTime() <= when)
-    .sort((a, b) => a.at.localeCompare(b.at))[0];
-  if (ended?.event === "revoked") return { status: "revoked", detail: `Revoked ${ended.at}, before the purchase at ${at}.` };
-  if (ended?.event === "superseded")
-    return { status: "superseded", detail: `Replaced by ${ended.by?.slice(0, 12)}… at ${ended.at}, before the purchase at ${at}.` };
-  if (when > new Date(`${mandate.valid_until}T23:59:59Z`).getTime())
-    return { status: "expired", detail: `Expired ${mandate.valid_until}, before the purchase at ${at}.` };
-  return { status: "in_force", detail: `Accepted ${accepted.at}${accepted.channel ? ` via ${accepted.channel}` : ""}; in force at the purchase (${at}).` };
+  if (!at || Number.isNaN(time(at))) return { status: "unknown", detail: "Purchase time unavailable, so the mandate version in force cannot be established." };
+  if (events.some((e) => Number.isNaN(time(e.at)))) return { status: "unknown", detail: "A recorded lifecycle event has an unreadable time." };
+  const when = time(at);
+  const sorted = [...events].sort((a, b) => time(a.at) - time(b.at));
+  const acceptances = sorted.filter((e) => e.event === "accepted");
+  if (!acceptances.length) return { status: "unknown", detail: "No recorded acceptance of this mandate by the buyer." };
+  const last = sorted.filter((e) => e.event !== "imported" && time(e.at) <= when).at(-1);
+  if (!last) return { status: "not_yet_accepted", detail: `Accepted ${acceptances[0]!.at}, after the purchase at ${at}.` };
+  if (last.event === "revoked") return { status: "revoked", detail: `Revoked ${last.at}, before the purchase at ${at}.` };
+  if (last.event === "superseded") return { status: "superseded", detail: `Replaced by ${last.by?.slice(0, 12)}… at ${last.at}, before the purchase at ${at}.` };
+  // A date alone ends at the close of that day (UTC).
+  const until = time(/^\d{4}-\d{2}-\d{2}$/.test(mandate.valid_until) ? `${mandate.valid_until}T23:59:59Z` : mandate.valid_until);
+  if (Number.isNaN(until)) return { status: "unknown", detail: `The mandate's end date (${mandate.valid_until}) is unreadable.` };
+  if (when > until) return { status: "expired", detail: `Expired ${mandate.valid_until}, before the purchase at ${at}.` };
+  return { status: "in_force", detail: `Accepted ${last.at}${last.channel ? ` via ${last.channel}` : ""}; in force at the purchase (${at}).` };
 }
 
 export class MandateStore {
@@ -144,9 +148,11 @@ export function checkMandate(mandate: Mandate, boundHash: string, purchase: Purc
 
   const cap = Number(mandate.scope.max_amount_usd);
   checks.push(
-    Number.isFinite(cap) && purchase.amountUsd <= cap
-      ? { rule: "amount", status: "pass", detail: `$${purchase.amountUsd.toFixed(2)} is within the $${cap.toFixed(2)} cap.` }
-      : { rule: "amount", status: "fail", detail: `$${purchase.amountUsd.toFixed(2)} exceeds the $${mandate.scope.max_amount_usd} cap.` },
+    !Number.isFinite(cap) || !Number.isFinite(purchase.amountUsd)
+      ? { rule: "amount", status: "unknown", detail: `The amount ($${purchase.amountUsd}) or the cap ($${mandate.scope.max_amount_usd}) is unreadable.` }
+      : purchase.amountUsd <= cap
+        ? { rule: "amount", status: "pass", detail: `$${purchase.amountUsd.toFixed(2)} is within the $${cap.toFixed(2)} cap.` }
+        : { rule: "amount", status: "fail", detail: `$${purchase.amountUsd.toFixed(2)} exceeds the $${mandate.scope.max_amount_usd} cap.` },
   );
 
   const allowed = mandate.scope.merchants.map((m) => m.toLowerCase());
