@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
 import { RulesAssessor } from "../src/baseline.js";
-import { cachedClaims, disputeRows, investigate, investigationView } from "../src/desk.js";
+import { cachedClaims, disputeRows, investigate, investigationView, rowsFor } from "../src/desk.js";
 import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
@@ -645,6 +645,23 @@ describe("reference shopping agent", () => {
     await expect(agentPurchase(client, "not-a-hash", "v", "House Blend", "16.00")).rejects.toThrow(/64 hex/);
     await expect(agentPurchase(client, BOUND_HASH, "v", "House Blend", "16")).rejects.toThrow(/16.00/);
     expect(writes).toHaveLength(0);
+  });
+});
+
+describe("dispute queue", () => {
+  it("lists open disputes first, the soonest response due at the top, then the newest", () => {
+    const claim = (disputeId: string, outcome: string | undefined, responseDueAt: string | undefined, createdAt: string) =>
+      ({ disputeId, reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED", amount: { value: 16, currency: "USD" }, status: "X", stage: "INQUIRY", outcome, responseDueAt, createdAt }) as Claim;
+    const rows = rowsFor(
+      [
+        claim("PP-R-CLOSED-1", "RESOLVED_BUYER_FAVOUR", undefined, "2026-10-20T00:00:00Z"),
+        claim("PP-R-LATER-1", undefined, "2026-10-30T00:00:00Z", "2026-10-10T00:00:00Z"),
+        claim("PP-R-NODUE-1", undefined, undefined, "2026-10-19T00:00:00Z"),
+        claim("PP-R-SOONER-1", undefined, "2026-10-25T00:00:00Z", "2026-10-11T00:00:00Z"),
+      ],
+      mkdtempSync(join(tmpdir(), "witness-runs-")),
+    );
+    expect(rows.map((r) => r.disputeId)).toEqual(["PP-R-SOONER-1", "PP-R-LATER-1", "PP-R-NODUE-1", "PP-R-CLOSED-1"]);
   });
 });
 

@@ -19,7 +19,7 @@ export const initialState: AgReportState<WitnessRegistry> = {
           type: "grid",
           format: { title: { enabled: true, text: "Dispute queue" } },
           dataMapping: {
-            cols: ["disputeId", "reason", "amountUsd", "baselineDecision", "witnessDecision", "sentToPayPal", "paypalStatus"].map((field) => ({
+            cols: ["disputeId", "responseDue", "reason", "amountUsd", "baselineDecision", "witnessDecision", "paypalStatus", "sentToPayPal"].map((field) => ({
               id: `disputes.${field}`,
             })),
           },
@@ -35,8 +35,8 @@ export const initialState: AgReportState<WitnessRegistry> = {
         "w-bought-by-ai-agent": { xTrack: 6, yTrack: 0, xSpan: 6, ySpan: 7 },
         "w-awaiting-our-response": { xTrack: 12, yTrack: 0, xSpan: 6, ySpan: 7 },
         "w-sent-to-paypal": { xTrack: 18, yTrack: 0, xSpan: 6, ySpan: 7 },
-        "w-dispute-queue": { xTrack: 0, yTrack: 7, xSpan: 24, ySpan: 18 },
-        "w-decisions-by-reason": { xTrack: 0, yTrack: 25, xSpan: 24, ySpan: 20 },
+        "w-dispute-queue": { xTrack: 0, yTrack: 7, xSpan: 24, ySpan: 25 },
+        "w-decisions-by-reason": { xTrack: 0, yTrack: 32, xSpan: 24, ySpan: 13 },
       },
       filter: {
         widget: {
@@ -71,5 +71,7 @@ export const initialState: AgReportState<WitnessRegistry> = {
     },
   ],
   selectedPageId: "queue",
+  // The chat stays open, narrower: the queue and the case come first.
+  panels: { ai: { width: 300 } },
   version: "3.0.0",
 };

@@ -51,9 +51,10 @@ export async function readClaims(deps: Deps): Promise<Claim[]> {
   return Promise.all(summaries.map(async (summary) => normalizeDispute(await deps.disputes.get(summary.dispute_id))));
 }
 
-// Witness's side comes from local runs, so it is always current.
+// Witness's side comes from local runs, so it is always current. Open disputes come first, the soonest
+// response due at the top, then the newest.
 export function rowsFor(claims: Claim[], runsDir: string): DisputeRow[] {
-  return claims.map((claim) => {
+  const rows = claims.map((claim): DisputeRow => {
     const witness = latestDryRun(runsDir, claim.disputeId);
     const baseline = latestDryRun(baselineDir(runsDir), claim.disputeId);
     const sent = records(runsDir, claim.disputeId).some((r) => r.executed && r.results.some((result) => result.ok && result.step !== "none"));
@@ -73,6 +74,9 @@ export function rowsFor(claims: Claim[], runsDir: string): DisputeRow[] {
       investigatedAt: witness?.ranAt ?? "",
     };
   });
+  // A dispute with no due date sorts after every dated one.
+  const due = (row: DisputeRow) => row.responseDue || "9999";
+  return rows.sort((a, b) => Number(Boolean(a.outcome)) - Number(Boolean(b.outcome)) || due(a).localeCompare(due(b)) || b.openedAt.localeCompare(a.openedAt));
 }
 
 export const disputeRows = async (deps: Deps) => rowsFor(await readClaims(deps), deps.runsDir);

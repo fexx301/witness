@@ -2,7 +2,7 @@
 // decision trace, the rules-only comparison, what goes to PayPal, and the actions. Every step says
 // who did it - Claude, code, the merchant's policy or PayPal - in words as well as colour, and only
 // what code actually checked is called checked.
-import type { AgDefaultWidgetDefinition, AgWidgetsConfig } from "ag-studio";
+import type { AgDefaultWidgetDefinition, AgWidgetField, AgWidgetsConfig } from "ag-studio";
 import { createWidgets, type AgRegistry, type AgWidgetDefinition } from "ag-studio-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTION_LABEL, onRefresh, sentence, sharedRows, type DisputeRow } from "./data";
@@ -30,12 +30,53 @@ const STATUS: Record<string, Tone> = {
   pass: { label: "Pass", ...GOOD },
   fail: { label: "Fail", ...BAD },
 };
-const FINDING_LABEL: Record<string, string> = {
-  authorization: "Buyer authorized the agent",
-  instruction_compliance: "Agent followed the buyer's instructions",
-  listing_match: "Merchant delivered as listed",
-  fulfilment: "Delivered",
+// The question each finding answers, for lists of what is missing and for comparisons.
+const FINDING_QUESTION: Record<string, string> = {
+  authorization: "Did the buyer authorize the agent?",
+  instruction_compliance: "Did the agent follow the buyer's instructions?",
+  listing_match: "Did the merchant deliver what was listed?",
+  fulfilment: "Was the order delivered?",
 };
+const STATUS_ANSWER: Record<string, string> = { established: "yes", contradicted: "no", unknown: "can't tell", not_applicable: "doesn't apply" };
+const CLAIM_TYPE: Record<string, string> = {
+  item_not_received: "item not received",
+  not_as_described: "not as described",
+  unauthorized: "an unauthorized purchase",
+  other: "something else",
+};
+// Fact ids, as Claude cites them, in words: mandate.instructions[0] reads "mandate instruction 1".
+const SOURCE_NOUN: Record<string, string> = {
+  buyer_statements: "buyer's statement",
+  seller_statements: "merchant's statement",
+  "mandate.instructions": "mandate instruction",
+  "dispute.items": "disputed item",
+  shipment_tracking: "tracking record",
+  "order.description": "order description",
+  "dispute.amount": "disputed amount",
+  "dispute.reason": "PayPal's reason",
+  "mandate.scope": "mandate's spending scope",
+};
+const FINDING_NOUN: Record<string, string> = {
+  authorization: "mandate check",
+  instruction_compliance: "instructions comparison",
+  listing_match: "listing comparison",
+  fulfilment: "delivery record",
+};
+function sourceLabel(id: string): string {
+  const [, finding] = /^finding\.(\w+)$/.exec(id) ?? [];
+  if (finding) return FINDING_NOUN[finding] ?? finding;
+  const [, rule] = /^mandate_checks\.(\w+)$/.exec(id) ?? [];
+  if (rule) return `mandate ${rule.replaceAll("_", " ")} check`;
+  const [, list, index] = /^(.+)\[(\d+)\]$/.exec(id) ?? [];
+  if (list && index) return `${SOURCE_NOUN[list] ?? list} ${Number(index) + 1}`;
+  return SOURCE_NOUN[id] ?? id;
+}
+// A gap is "<finding key>: <why it is unknown>", or a PayPal evidence request (src/decide.ts gapsOf).
+function gapParts(gap: string): { question: string; detail: string } {
+  const [, key, detail] = /^(\w+): ([\s\S]*)$/.exec(gap) ?? [];
+  return key && detail && FINDING_QUESTION[key] ? { question: FINDING_QUESTION[key]!, detail } : { question: "PayPal's request", detail: gap };
+}
+
 const STEP_LABEL: Record<string, string> = {
   provide_evidence: "Submit evidence",
   provide_supporting_info: "Submit supporting information",
@@ -250,8 +291,8 @@ function ComparisonStep({ view, findingKey, title }: { view: InvestigationView; 
         <Chip tone={STATUS[f.status] ?? { label: f.status, ...NEUTRAL }} /> {readable(f.summary)}
       </TraceStep>
       {f.status !== "not_applicable" && (
-        <TraceStep actor={ACTOR.code} title="Code checked Claude's citations">
-          {cited ? `Every cited fact was supplied: ${f.sources.join(", ")}.` : "A citation was missing or not a supplied fact, so this comparison is not used."}
+        <TraceStep actor={ACTOR.code} title="Code checked Claude's sources">
+          {cited ? `Every source Claude cited was supplied: ${f.sources.map(sourceLabel).join(", ")}.` : "A source was missing or was not a supplied fact, so this comparison is not used."}
         </TraceStep>
       )}
     </>
@@ -269,7 +310,7 @@ function Trace() {
         return (
           <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
             <TraceStep actor={ACTOR.claude} title="Claude read the buyer's words">
-              Read as {reviewed.assessment.claim_type.replaceAll("_", " ")}. The case is routed on PayPal's stated reason.
+              Claude reads this as {CLAIM_TYPE[reviewed.assessment.claim_type] ?? reviewed.assessment.claim_type}. PayPal's stated reason decides how the case is handled.
             </TraceStep>
             {authorization && (
               <TraceStep actor={ACTOR.code} title="Code checked the mandate">
@@ -288,7 +329,7 @@ function Trace() {
             </TraceStep>
             <TraceStep actor={ACTOR.policy} title={`Decision: ${ACTION_LABEL[reviewed.decision.action] ?? reviewed.decision.action}`}>
               {readable(reviewed.decision.why.at(-1) ?? "")}
-              {reviewed.decision.gaps.length > 0 && <Muted>Missing: {readable(reviewed.decision.gaps.join("; "))}</Muted>}
+              {reviewed.decision.gaps.length > 0 && <Muted>Missing: {reviewed.decision.gaps.map((gap) => gapParts(gap).question).join(" ")}</Muted>}
             </TraceStep>
             {!executed && view.lastSent && (
               <TraceStep actor={ACTOR.paypal} title="Sent to PayPal from an earlier investigation">
@@ -345,8 +386,8 @@ function Baseline() {
             ) : (
               differences.map((f) => (
                 <p key={f.key} style={{ margin: "4px 0" }}>
-                  <strong>{FINDING_LABEL[f.key] ?? f.key}</strong>: rules-only says {view.baseline!.findings.find((b) => b.key === f.key)?.status.replaceAll("_", " ")}, Witness says{" "}
-                  {f.status.replaceAll("_", " ")}.
+                  <strong>{FINDING_QUESTION[f.key] ?? f.key}</strong> Rules-only: {STATUS_ANSWER[view.baseline!.findings.find((b) => b.key === f.key)?.status ?? ""] ?? "not checked"}. Witness:{" "}
+                  {STATUS_ANSWER[f.status] ?? f.status}.
                 </p>
               ))
             )}
@@ -389,6 +430,17 @@ function Outgoing() {
       }}
     </WithView>
   );
+}
+
+// The send button says what it sends.
+function reviewLabel(steps: Step[]): string {
+  const [first] = steps;
+  if (!first) return "Nothing to send";
+  if (first.kind === "accept_claim") return first.acceptClaimType === "REFUND_WITH_RETURN" ? "Review refund with return…" : "Review refund…";
+  if (first.kind === "make_offer") return "Review return offer…";
+  if (first.kind === "provide_evidence" || first.kind === "provide_supporting_info") return "Review evidence for PayPal…";
+  if (first.kind === "send_message") return steps.some((s) => s.kind === "escalate") ? "Review message and escalation…" : "Review message to buyer…";
+  return `Review: ${STEP_LABEL[first.kind] ?? first.kind}…`;
 }
 
 function ActionButton({ onClick, disabled, primary, children }: { onClick: () => void; disabled?: boolean; primary?: boolean; children: ReactNode }) {
@@ -447,7 +499,7 @@ function Actions() {
           {busy === "investigating" ? "Investigating… (about 20 s)" : view ? "Investigate again" : "Investigate"}
         </ActionButton>
         <ActionButton primary disabled={!canSend || busy !== null} onClick={() => setConfirming(true)}>
-          Execute decision…
+          {view?.executed ? "Sent to PayPal" : reviewLabel(sendable)}
         </ActionButton>
         {view && (
           <span style={{ color: MUTED }}>
@@ -522,8 +574,24 @@ export interface WitnessRegistry extends AgRegistry {
   widgets: readonly (AgDefaultWidgetDefinition | AgWidgetDefinition<WitnessWidgetId>)[];
 }
 
+// In the queue grid, a dispute's ID opens its investigation.
+function DisputeLink({ value }: { value?: unknown }) {
+  const id = String(value ?? "");
+  return (
+    <button
+      onClick={() => openDispute(id)}
+      title={`Open ${id}`}
+      style={{ padding: 0, border: "none", background: "none", color: "#2457D6", font: "inherit", textDecoration: "underline", cursor: "pointer" }}
+    >
+      {id}
+    </button>
+  );
+}
+
 export const widgets = (defaults: AgWidgetsConfig) =>
   createWidgets<WitnessRegistry>({
     additionalTypes: DEFINITIONS,
     menu: [...defaults.menu, { label: "Witness", widgetIds: WIDGET_IDS }],
+    // AG Studio's types narrow overrides to never once custom widgets are registered; the runtime takes them.
+    overrides: [{ id: "grid", options: { createCellRenderer: (field: AgWidgetField) => ("fieldId" in field && field.fieldId === "disputes.disputeId" ? DisputeLink : undefined) } }] as never[],
   });
