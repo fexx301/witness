@@ -619,7 +619,9 @@ function Case() {
 
   const view = loaded.state === "ready" ? loaded.view : null;
   const sendable = view ? view.reviewed.steps.filter((s) => s.kind !== "none") : [];
-  const canSend = Boolean(view && !view.executed && !view.reviewed.claim.outcome && sendable.length);
+  // The server sends one response per stage of a dispute; a later review does not send another.
+  const sentAtStage = Boolean(view?.lastSent && view.lastSent.stage === view.reviewed.claim.stage);
+  const canSend = Boolean(view && !view.executed && !view.reviewed.claim.outcome && sendable.length && !sentAtStage);
   const run = async (kind: "investigating" | "sending", work: () => Promise<string>) => {
     setBusy(kind);
     setMessage(null);
@@ -681,7 +683,12 @@ function Case() {
           {view && <Muted>Investigated {when(view.reviewed.ranAt)}</Muted>}
           {view && !canSend && !view.executed && <Muted>{nothingSent(view)}</Muted>}
           {view?.executed && <Muted>Sent to PayPal {when(view.executed.ranAt)}.</Muted>}
-          {view && !view.executed && view.lastSent && <Muted>An earlier investigation was sent to PayPal {when(view.lastSent.ranAt)}.</Muted>}
+          {view && !view.executed && view.lastSent && (
+            <Muted>
+              An earlier investigation was sent to PayPal {when(view.lastSent.ranAt)}
+              {sentAtStage ? ". Witness sends one response per stage of a dispute." : "."}
+            </Muted>
+          )}
         </section>
         {view && (
           <section>

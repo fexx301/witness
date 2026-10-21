@@ -91,7 +91,7 @@ export interface InvestigationView {
   mandate: { agent: string; scope: { max_amount_usd: string; merchants: string[]; category: string }; instructions?: string[]; valid_until: string } | null;
   baseline: { ranAt: string; decision: Decision; findings: Finding[] } | null;
   executed: { ranAt: string; steps: Step[]; results: { step: string; ok: boolean; debugId?: string | null; error?: string }[] } | null;
-  lastSent: { ranAt: string; results: { step: string; ok: boolean; debugId?: string | null }[] } | null;
+  lastSent: { ranAt: string; stage?: string; results: { step: string; ok: boolean; debugId?: string | null }[] } | null;
 }
 
 export type Loaded = { state: "none" } | { state: "loading" } | { state: "missing" } | { state: "error"; message: string } | { state: "ready"; view: InvestigationView };

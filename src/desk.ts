@@ -124,6 +124,6 @@ export function investigationView(runsDir: string, disputeId: string, ranAt?: st
     mandate: mandates?.find(reviewed.claim.mandateHash) ?? null,
     baseline: baseline && { ranAt: baseline.ranAt, decision: baseline.decision, findings: baseline.findings },
     executed: executed && { ranAt: executed.ranAt, steps: executed.steps, results: executed.results },
-    lastSent: lastSent && { ranAt: lastSent.ranAt, results: lastSent.results },
+    lastSent: lastSent && { ranAt: lastSent.ranAt, stage: lastSent.claim.stage, results: lastSent.results },
   };
 }

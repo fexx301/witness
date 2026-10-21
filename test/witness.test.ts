@@ -574,6 +574,30 @@ describe("pipeline", () => {
     expect(writes).toHaveLength(0);
   });
 
+  it("refuses when the records changed, when PayPal no longer offers the reviewed response, and a second send at the same stage", async () => {
+    const tracker = "/v1/shipping/trackers/9E839789UG349854R-9400111899223197428490";
+    const disputePath = "/v1/customer/disputes/PP-R-SSN-10190213";
+    const { client, writes, routes } = fakePayPal("DELIVERED");
+    const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
+    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: false });
+
+    routes[tracker] = { status: "RETURNED", carrier: "USPS" };
+    await expect(executeReviewed(deps(client, runsDir), reviewed)).rejects.toThrow(/records changed since the review \(fulfilment\)/);
+    routes[tracker] = { status: "DELIVERED", carrier: "USPS" };
+
+    const open = routes[disputePath] as RawDispute;
+    routes[disputePath] = { ...open, links: [{ rel: "provide_supporting_info", href: "", method: "POST" }] };
+    await expect(executeReviewed(deps(client, runsDir), reviewed)).rejects.toThrow(/PayPal now allows "provide_supporting_info", not the reviewed "provide_evidence PROOF_OF_FULFILLMENT"/);
+    expect(writes).toHaveLength(0);
+    expect(readdirSync(runsDir).filter((name) => name.endsWith("-executed.json"))).toHaveLength(0);
+
+    routes[disputePath] = open;
+    await executeReviewed(deps(client, runsDir), reviewed);
+    const later = await processDispute({ ...deps(client, runsDir), now: () => new Date("2026-10-03T11:00:00Z") }, "PP-R-SSN-10190213", { execute: false });
+    await expect(executeReviewed(deps(client, runsDir), later)).rejects.toThrow(/already sent a response at this stage/);
+    expect(writes).toHaveLength(1);
+  });
+
   it("gives the desk one row per dispute, with Witness's and the baseline's decisions once investigated", async () => {
     const { client } = fakePayPal("DELIVERED");
     const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));

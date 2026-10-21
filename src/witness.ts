@@ -55,21 +55,34 @@ export function reviewedRecord(runsDir: string, disputeId: string, ranAt: string
 
 export class ExecutionRefused extends Error {}
 
-// Sends exactly what a person reviewed: that dry run's decision and text, planned against the
-// responses PayPal offers now. No new assessment is made. Refused when the case changed in a way that
-// matters, when it was already sent, or when the review came from the rules-only baseline. The
-// dispute's status is not compared: it only says whose turn it is, and the allowed responses are
-// re-read live.
+// Every record of an execution for a dispute, oldest first.
+function executedRecords(runsDir: string, disputeId: string): RunRecord[] {
+  return readdirSync(runsDir)
+    .filter((name) => name.startsWith(`${disputeId}-`) && name.endsWith("-executed.json"))
+    .sort()
+    .map((name) => JSON.parse(readFileSync(join(runsDir, name), "utf8")) as RunRecord);
+}
+
+// What a plan sends, to compare the reviewed plan with the one PayPal allows now. Stored steps have
+// their files replaced, so files are not compared.
+const sends = (steps: Step[]) =>
+  steps.map((s) => [s.kind, "acceptClaimType" in s && s.acceptClaimType, "offerType" in s && s.offerType, "evidenceType" in s && s.evidenceType].filter(Boolean).join(" ")).join(", ");
+
+// Sends exactly what a person reviewed: that dry run's decision and text, with no new assessment.
+// Refused when it was already sent, when something was already sent at this stage of the dispute,
+// when the review came from the rules-only baseline, when the dispute or the records code checked
+// have changed, or when PayPal now allows a different response than the reviewed one. The dispute's
+// status is not compared: it only says whose turn it is.
 export async function executeReviewed(deps: Deps, reviewed: RunRecord): Promise<RunRecord> {
   if (reviewed.executed || reviewed.model === "rules-only baseline") throw new ExecutionRefused("Only a Witness dry run can be executed.");
-  const executedBefore = readdirSync(deps.runsDir).some((name) => {
-    if (!name.startsWith(`${reviewed.disputeId}-`) || !name.endsWith("-executed.json")) return false;
-    return (JSON.parse(readFileSync(join(deps.runsDir, name), "utf8")) as RunRecord).reviewedRanAt === reviewed.ranAt;
-  });
-  if (executedBefore) throw new ExecutionRefused("This reviewed investigation was already sent to PayPal.");
+  const executed = executedRecords(deps.runsDir, reviewed.disputeId);
+  if (executed.some((r) => r.reviewedRanAt === reviewed.ranAt)) throw new ExecutionRefused("This reviewed investigation was already sent to PayPal.");
 
   const live = normalizeDispute(await deps.disputes.get(reviewed.disputeId));
   if (live.outcome) throw new ExecutionRefused(`The dispute is already resolved (${live.outcome}).`);
+  // A later review of the same case does not send a second response at the same stage.
+  const sentAtStage = executed.filter((r) => r.claim.stage === live.stage && r.results.some((x) => x.ok && x.step !== "none")).at(-1);
+  if (sentAtStage) throw new ExecutionRefused(`Witness already sent a response at this stage of the dispute (${sentAtStage.ranAt}); it does not send twice.`);
   const was = reviewed.claim;
   const changed = [
     live.stage !== was.stage && "stage",
@@ -80,16 +93,22 @@ export async function executeReviewed(deps: Deps, reviewed: RunRecord): Promise<
   ].filter(Boolean);
   if (changed.length) throw new ExecutionRefused(`The dispute changed since the review (${changed.join(", ")}). Investigate again before acting.`);
 
-  const mandate = deps.mandates.find(live.mandateHash);
+  // What code established at review time must still hold: delivery, the mandate and its approval.
+  const now = await establish(deps, live);
+  const moved = now.findings.filter((f) => reviewed.findings.find((r) => r.key === f.key)?.status !== f.status).map((f) => f.key);
+  if (moved.length) throw new ExecutionRefused(`The records changed since the review (${moved.join(", ")}). Investigate again before acting.`);
+
   const files: EvidenceFile[] = [{ filename: `witness-${live.disputeId}.txt`, contentType: "text/plain", data: reviewed.evidencePack }];
-  if (mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(mandate, null, 2) });
-  const steps = planSteps(live, reviewed.decision, reviewed.writing, files, reviewed.tracking);
+  if (now.mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(now.mandate, null, 2) });
+  const steps = planSteps(live, reviewed.decision, reviewed.writing, files, now.tracking);
+  if (sends(steps) !== sends(reviewed.steps))
+    throw new ExecutionRefused(`PayPal now allows "${sends(steps)}", not the reviewed "${sends(reviewed.steps)}". Investigate again before acting.`);
+  if (steps.every((s) => s.kind === "none")) throw new ExecutionRefused("This review sends nothing to PayPal.");
   const results = await executeSteps(deps.disputes, live.disputeId, steps);
 
-  const now = (deps.now ?? (() => new Date()))();
   const record: RunRecord = {
     ...reviewed,
-    ranAt: now.toISOString(),
+    ranAt: (deps.now ?? (() => new Date()))().toISOString(),
     executed: true,
     reviewedRanAt: reviewed.ranAt,
     claim: { ...live, actions: [...live.actions] },
@@ -100,10 +119,9 @@ export async function executeReviewed(deps: Deps, reviewed: RunRecord): Promise<
   return record;
 }
 
-export async function processDispute(deps: Deps, disputeId: string, options: { execute: boolean }): Promise<RunRecord> {
-  const now = (deps.now ?? (() => new Date()))();
-  const claim = normalizeDispute(await deps.disputes.get(disputeId));
-
+// What code establishes from PayPal's records and the mandate store before any model reads the case.
+// Run again at execution, so a reviewed decision is never sent on records that have since changed.
+async function establish(deps: Deps, claim: Claim) {
   let capture: Capture | null = null;
   let tracking: Tracking[] = [];
   let orderDescription: string | undefined;
@@ -150,8 +168,14 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
     checks.push(checkPayPalApproval(approval, claim.mandateHash!, claim.buyerPayerId, capture?.create_time));
   }
 
-  // Code establishes what it can before the model sees anything.
-  const established: Finding[] = [authorizationFinding(mandate, checks, claim.mandateHash), fulfilmentFinding(tracking)];
+  return { capture, tracking, orderDescription, mandate, checks, findings: [authorizationFinding(mandate, checks, claim.mandateHash), fulfilmentFinding(tracking)] };
+}
+
+export async function processDispute(deps: Deps, disputeId: string, options: { execute: boolean }): Promise<RunRecord> {
+  const now = (deps.now ?? (() => new Date()))();
+  const claim = normalizeDispute(await deps.disputes.get(disputeId));
+
+  const { capture, tracking, orderDescription, mandate, checks, findings: established } = await establish(deps, claim);
   const assessment = await deps.assessor.assess({ claim, mandate, findings: established, tracking, orderDescription });
   const facts = factsFor({ claim, mandate, findings: established, tracking, orderDescription });
   const findings: Finding[] = [
