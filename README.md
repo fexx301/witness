@@ -21,7 +21,9 @@ Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run aga
    bound to the order by its SHA-256 (carried in the PayPal `custom_id`).
 3. **Establish facts in code**:
    - **authorization**: the mandate version in force *at purchase time* (accepted, not superseded,
-     revoked or expired), the amount within its cap, the merchant named in it, the document unaltered;
+     revoked or expired), the amount within its cap, the merchant named in it, the document unaltered,
+     and the acceptance linked to the buyer's own PayPal approval. Anything unreadable or unlinked is
+     unknown, never in force;
    - **fulfilment**: only a delivered record establishes delivery. A shipped status, or a missing record,
      is unknown, not proof either way.
 4. **Compare with Claude**: what the buyer instructed, what the agent bought, and what the listing
@@ -45,8 +47,9 @@ Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run aga
 
 ## What Witness does not claim
 
-- **A matching mandate hash proves the document is unchanged, not who accepted it.** Buyer acceptance is a
-  separate recorded event; mandates imported without one are treated as unproven.
+- **A matching mandate hash proves the document is unchanged, not who accepted it.** Who accepted it comes
+  from PayPal: an acceptance counts only when it is linked to the buyer's PayPal approval. One that only
+  Witness recorded, or a mandate imported without one, leaves authorization unknown.
 - **PayPal sandbox rulings are chosen by the developer** (`adjudicate` is a sandbox-only test call). They
   show Witness works across PayPal's full dispute lifecycle, not that its evidence wins disputes. Witness
   makes no claim about real recovery rates.
@@ -132,9 +135,12 @@ terms on Witness's acceptance page and then approves, at PayPal, a first payment
 agent. At dispute time Witness checks PayPal's record of that payment. This link is built and tested, not
 yet exercised live.
 
-`eval/` holds 18 synthetic cases whose labels were committed before any run. The rules-only baseline
-handles the 13 that rules can decide and misses the 5 that need the buyer's words or the instructions read;
-`npx tsx eval/run.ts` reproduces it with no keys. Witness's run (`--witness`) is next, then hosting.
+`eval/` holds 18 synthetic cases whose labels were committed before any run. A simple rules-only baseline
+handles 13 and misses the 5 that need the buyer's words or the instructions read; `npx tsx eval/run.ts`
+reproduces it with no keys. Witness (Claude Opus) decided all 18 in one run
+(`eval/results/2026-10-20T19-41-35-642Z.json`). Later code changes leave the facts Claude is given unchanged
+for every case, and its recorded findings still decide all 18. These are synthetic cases built around what
+rules cannot read, and a single run, not a measure of real disputes.
 
 ## License
 
