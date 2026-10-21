@@ -12,6 +12,7 @@ import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding,
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
 import { checkMandate, checkPayPalApproval, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
 import { completeAcceptance, firstOrderProblem } from "../src/accept.js";
+import { agentPurchase, recordShipment } from "../src/agentBuy.js";
 import { CONSERVATIVE_POLICY, type MerchantPolicy } from "../src/policy.js";
 import { PayPalClient, PayPalError } from "../src/paypal/client.js";
 import { Disputes, type RawDispute } from "../src/paypal/disputes.js";
@@ -591,5 +592,44 @@ describe("hosted access", () => {
     expect([count.take(), count.take(), count.take()]).toEqual([true, true, false]);
     day = "2026-10-21";
     expect(count.take()).toBe(true);
+  });
+});
+
+describe("reference shopping agent", () => {
+  // A fake PayPal that records every write and completes a saved-PayPal charge on creation.
+  const paypal = () => {
+    const writes: { method: string; path: string; body: any }[] = [];
+    const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === "/v1/oauth2/token") return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }));
+      writes.push({ method: init?.method ?? "GET", path, body: JSON.parse(String(init?.body ?? "{}")) });
+      if (path === "/v2/checkout/orders")
+        return new Response(JSON.stringify({ id: "ORDER1", status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: "CAP1", status: "COMPLETED", create_time: "2026-10-21T10:00:00Z" }] } }] }));
+      return new Response(JSON.stringify({}));
+    }) as typeof fetch;
+    return { client: new PayPalClient({ clientId: "id", clientSecret: "secret", env: "sandbox" }, fetchImpl), writes };
+  };
+
+  it("charges the saved PayPal with the mandate's hash bound to the order, then ships and records delivery", async () => {
+    const { client, writes } = paypal();
+    const purchase = await agentPurchase(client, BOUND_HASH, "99s59502mc171043h", "House Blend, ground, 340 g", "16.00");
+    expect(purchase).toEqual({ orderId: "ORDER1", captureId: "CAP1", capturedAt: "2026-10-21T10:00:00Z" });
+    expect(writes[0]!.body).toMatchObject({
+      purchase_units: [{ description: "House Blend, ground, 340 g", custom_id: BOUND_HASH, amount: { value: "16.00" } }],
+      payment_source: { paypal: { vault_id: "99s59502mc171043h" } },
+    });
+    await recordShipment(client, purchase, true, "9400111899223000000001");
+    expect(writes.slice(1).map((w) => `${w.method} ${w.path}`)).toEqual([
+      "POST /v2/checkout/orders/ORDER1/track",
+      "PUT /v1/shipping/trackers/CAP1-9400111899223000000001",
+    ]);
+    expect(writes[2]!.body).toMatchObject({ status: "DELIVERED" });
+  });
+
+  it("refuses a malformed purchase before calling PayPal", async () => {
+    const { client, writes } = paypal();
+    await expect(agentPurchase(client, "not-a-hash", "v", "House Blend", "16.00")).rejects.toThrow(/64 hex/);
+    await expect(agentPurchase(client, BOUND_HASH, "v", "House Blend", "16")).rejects.toThrow(/16.00/);
+    expect(writes).toHaveLength(0);
   });
 });

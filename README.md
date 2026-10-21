@@ -66,6 +66,16 @@ npm test
 
 Merchant policy lives in `data/policy.json`. Without one, Witness refunds nothing automatically.
 
+To stage a demo case, the reference shopping agent charges the buyer's saved PayPal with no buyer present,
+under a mandate Witness holds, and the merchant's shipment can be recorded as shipped or delivered:
+
+```bash
+npm run witness -- agent-buy <mandate-hash> --vault <vault-id> --item "House Blend, ground, 340 g" --amount 16.00 --ship delivered
+```
+
+The vault ID comes from the buyer's acceptance (the acceptance page logs it). The buyer then files the
+dispute from their sandbox PayPal account.
+
 ## The investigation desk
 
 ```bash

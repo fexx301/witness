@@ -1,6 +1,8 @@
 // witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file>
+//         | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered]
 
 import { existsSync, readFileSync } from "node:fs";
+import { agentPurchase, recordShipment } from "./agentBuy.js";
 import { normalizeDispute } from "./claim.js";
 import { ClaudeAssessor } from "./decide.js";
 import { MandateSchema, MandateStore } from "./mandate.js";
@@ -14,6 +16,7 @@ if (existsSync(".env")) process.loadEnvFile(".env");
 
 const [command, arg, ...flags] = process.argv.slice(2);
 const mandates = new MandateStore("data/mandates");
+const flag = (name: string) => (flags.includes(name) ? flags[flags.indexOf(name) + 1] : undefined);
 
 function paypal() {
   const client = new PayPalClient(credentialsFromEnv());
@@ -55,8 +58,22 @@ async function main() {
       console.log(`stored mandate ${hash} (imported; buyer acceptance not recorded)`);
       return;
     }
+    case "agent-buy": {
+      const [vault, item, amount, ship] = [flag("--vault"), flag("--item"), flag("--amount"), flag("--ship")];
+      if (!arg || !vault || !item || !amount || (ship && ship !== "shipped" && ship !== "delivered"))
+        throw new Error('usage: witness agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered]');
+      if (!mandates.find(arg)) throw new Error(`Witness holds no mandate ${arg.slice(0, 12)}…; import or accept one first.`);
+      const client = new PayPalClient(credentialsFromEnv());
+      const purchase = await agentPurchase(client, arg, vault, item, amount);
+      console.log(`agent bought "${item}" for $${amount}: order ${purchase.orderId}, capture ${purchase.captureId} at ${purchase.capturedAt}`);
+      if (ship) {
+        const shipment = await recordShipment(client, purchase, ship === "delivered");
+        console.log(`merchant recorded USPS ${shipment.trackingNumber} as ${shipment.status}`);
+      }
+      return;
+    }
     default:
-      console.log("usage: witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file.json>");
+      console.log('usage: witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file.json> | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered]');
   }
 }
 
