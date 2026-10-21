@@ -1,4 +1,5 @@
-// One dispute, end to end: read → gather → establish findings → assess → decide → act → record.
+// One dispute, end to end: read → gather → establish findings → assess → decide → plan → record a dry run.
+// Acting is separate: executeReviewed sends a dry run a person reviewed, and nothing else sends.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -174,7 +175,8 @@ async function establish(deps: Deps, claim: Claim) {
   return { capture, tracking, orderDescription, mandate, checks, findings: [authorizationFinding(mandate, checks, claim.mandateHash), fulfilmentFinding(tracking)] };
 }
 
-export async function processDispute(deps: Deps, disputeId: string, options: { execute: boolean }): Promise<RunRecord> {
+// An investigation is always a dry run: sending is executeReviewed's job, after a person has reviewed it.
+export async function processDispute(deps: Deps, disputeId: string): Promise<RunRecord> {
   const now = (deps.now ?? (() => new Date()))();
   const claim = normalizeDispute(await deps.disputes.get(disputeId));
 
@@ -202,12 +204,12 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
   if (mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(mandate, null, 2) });
 
   const steps = planSteps(claim, decision, writing, files, tracking);
-  const results = options.execute ? await executeSteps(deps.disputes, claim.disputeId, steps) : [];
+
 
   const record: RunRecord = {
     disputeId: claim.disputeId,
     ranAt: now.toISOString(),
-    executed: options.execute,
+    executed: false,
     model: deps.assessor.model,
     policy: deps.policy.name,
     claim: { ...claim, actions: [...claim.actions] },
@@ -220,10 +222,10 @@ export async function processDispute(deps: Deps, disputeId: string, options: { e
     decision,
     writing,
     steps: steps.map((s) => ("files" in s ? { ...s, files: s.files.map((f) => ({ ...f, data: `<${f.data.length} chars>` })) } : s)),
-    results,
+    results: [],
     evidencePack,
   };
   mkdirSync(deps.runsDir, { recursive: true });
-  writeFileSync(recordFile(deps.runsDir, claim.disputeId, record.ranAt, options.execute ? "executed" : "dry-run"), JSON.stringify(record, null, 2) + "\n");
+  writeFileSync(recordFile(deps.runsDir, claim.disputeId, record.ranAt, "dry-run"), JSON.stringify(record, null, 2) + "\n");
   return record;
 }

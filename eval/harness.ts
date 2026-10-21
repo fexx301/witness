@@ -156,7 +156,6 @@ export async function runCase(c: EvalCase, assessor: Assessor, store: MandateSto
   const record = await processDispute(
     { disputes: new Disputes(client), orders: new Orders(client), mandates: store, assessor, policy: EVAL_POLICY, runsDir, now: () => new Date("2026-10-12T12:00:00Z") },
     disputeId,
-    { execute: false },
   );
   return {
     case: c.id,

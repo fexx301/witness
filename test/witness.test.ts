@@ -529,9 +529,10 @@ describe("pipeline", () => {
   it("asks for evidence when the parcel is only shipped, and sends nothing even with --execute", async () => {
     const { client, writes } = fakePayPal("SHIPPED");
     const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
-    const record = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: true });
+    const record = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213");
     expect(record.decision.action).toBe("request_evidence");
     expect(record.evidencePack).toContain("[UNKNOWN] fulfilment");
+    await expect(executeReviewed(deps(client, runsDir), record)).rejects.toThrow(/sends nothing/);
     expect(writes).toHaveLength(0);
   });
 
@@ -540,7 +541,7 @@ describe("pipeline", () => {
     const pipeline = deps(client, mkdtempSync(join(tmpdir(), "witness-runs-")));
     pipeline.mandates.save(legacyMandate);
     pipeline.mandates.record(BOUND_HASH, { event: "accepted", at: "2026-10-02T01:56:35Z", paypal_order: "56268850E1823301N" });
-    const record = await processDispute(pipeline, "PP-R-SSN-10190213", { execute: false });
+    const record = await processDispute(pipeline, "PP-R-SSN-10190213");
     expect(record.checks.find((c) => c.rule === "paypal_approval")).toMatchObject({ status: "pass" });
   });
 
@@ -549,14 +550,14 @@ describe("pipeline", () => {
     const pipeline = deps(client, mkdtempSync(join(tmpdir(), "witness-runs-")));
     pipeline.mandates.save(legacyMandate);
     pipeline.mandates.record(BOUND_HASH, { event: "accepted", at: "2026-10-02T01:56:35Z", channel: "recorded by script" });
-    const record = await processDispute(pipeline, "PP-R-SSN-10190213", { execute: false });
+    const record = await processDispute(pipeline, "PP-R-SSN-10190213");
     expect(record.checks.find((c) => c.rule === "paypal_approval")).toMatchObject({ status: "unknown", detail: expect.stringMatching(/not linked to a PayPal approval/) });
     expect(record.findings.find((f) => f.key === "authorization")?.status).toBe("unknown");
   });
 
   it("keeps the order's tracker status when the v1 tracking lookup fails", async () => {
     const { client } = fakePayPal(null);
-    const record = await processDispute(deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), "PP-R-SSN-10190213", { execute: false });
+    const record = await processDispute(deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), "PP-R-SSN-10190213");
     expect(record.tracking[0]).toMatchObject({ status: "SHIPPED" });
     expect(record.decision.action).toBe("request_evidence");
   });
@@ -564,10 +565,10 @@ describe("pipeline", () => {
   it("defends with evidence once delivery is recorded, and only when told to act", async () => {
     const { client, writes, inputs } = fakePayPal("DELIVERED");
     const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
-    const dry = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: false });
+    const dry = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213");
     expect(dry.decision).toMatchObject({ action: "defend", basis: "facts" });
     expect(writes).toHaveLength(0);
-    const live = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: true });
+    const live = await executeReviewed(deps(client, runsDir), dry);
     expect(live.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
     expect(writes).toEqual([{ path: "/v1/customer/disputes/PP-R-SSN-10190213/provide-evidence", contentType: "multipart" }]);
     // Not received takes proof of fulfilment: the delivered tracker, with no text file attached.
@@ -598,9 +599,7 @@ describe("pipeline", () => {
           ],
         }),
     };
-    const record = await processDispute({ ...deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), assessor: writer }, "PP-R-SSN-10190213", {
-      execute: false,
-    });
+    const record = await processDispute({ ...deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), assessor: writer }, "PP-R-SSN-10190213");
     expect(record.steps[0]).toMatchObject({ kind: "provide_evidence", notes: "Tracking shows the parcel delivered. (sources: shipment_tracking[0])" });
     expect(record.writing.dropped.map((s) => s.text)).toEqual(["The buyer signed for it."]);
     expect(record.evidencePack).toContain("NOT SENT");
@@ -609,9 +608,7 @@ describe("pipeline", () => {
   it("answers PayPal's stated reason and flags Claude's different reading", async () => {
     const { client } = fakePayPal("DELIVERED");
     const misread: Assessor = { model: "fake", assess: async () => assessment({ claim_type: "not_as_described" }) };
-    const record = await processDispute({ ...deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), assessor: misread }, "PP-R-SSN-10190213", {
-      execute: false,
-    });
+    const record = await processDispute({ ...deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), assessor: misread }, "PP-R-SSN-10190213");
     expect(record.decision).toMatchObject({ action: "defend", basis: "facts" });
     expect(record.decision.discrepancy).toContain("MERCHANDISE_OR_SERVICE_NOT_RECEIVED");
     expect(record.evidencePack).toContain("DISCREPANCY:");
@@ -620,7 +617,7 @@ describe("pipeline", () => {
   it("executes exactly the reviewed dry run, once, with no new assessment", async () => {
     const { client, writes } = fakePayPal("DELIVERED");
     const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
-    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: false });
+    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213");
     const noModel: Assessor = { model: "fake", assess: async () => { throw new Error("no model may be called when executing a review"); } };
     const executed = await executeReviewed({ ...deps(client, runsDir), assessor: noModel }, reviewed);
     expect(executed).toMatchObject({ executed: true, reviewedRanAt: reviewed.ranAt, decision: reviewed.decision });
@@ -633,7 +630,7 @@ describe("pipeline", () => {
   it("refuses to execute when the dispute changed since the review, or when the review is the baseline", async () => {
     const { client, writes, routes } = fakePayPal("DELIVERED");
     const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
-    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: false });
+    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213");
     await expect(executeReviewed(deps(client, runsDir), { ...reviewed, model: "rules-only baseline" })).rejects.toBeInstanceOf(ExecutionRefused);
     const dispute = routes["/v1/customer/disputes/PP-R-SSN-10190213"] as RawDispute;
     routes["/v1/customer/disputes/PP-R-SSN-10190213"] = { ...dispute, dispute_life_cycle_stage: "ARBITRATION" };
@@ -646,7 +643,7 @@ describe("pipeline", () => {
     const disputePath = "/v1/customer/disputes/PP-R-SSN-10190213";
     const { client, writes, routes } = fakePayPal("DELIVERED");
     const runsDir = mkdtempSync(join(tmpdir(), "witness-runs-"));
-    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213", { execute: false });
+    const reviewed = await processDispute(deps(client, runsDir), "PP-R-SSN-10190213");
 
     routes[tracker] = { status: "RETURNED", carrier: "USPS" };
     await expect(executeReviewed(deps(client, runsDir), reviewed)).rejects.toThrow(/records changed since the review \(fulfilment\)/);
@@ -660,7 +657,7 @@ describe("pipeline", () => {
 
     routes[disputePath] = open;
     await executeReviewed(deps(client, runsDir), reviewed);
-    const later = await processDispute({ ...deps(client, runsDir), now: () => new Date("2026-10-03T11:00:00Z") }, "PP-R-SSN-10190213", { execute: false });
+    const later = await processDispute({ ...deps(client, runsDir), now: () => new Date("2026-10-03T11:00:00Z") }, "PP-R-SSN-10190213");
     await expect(executeReviewed(deps(client, runsDir), later)).rejects.toThrow(/already sent a response at this stage/);
     expect(writes).toHaveLength(1);
   });

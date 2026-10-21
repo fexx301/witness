@@ -104,8 +104,8 @@ export function cachedClaims(read: () => Promise<Claim[]>, maxAgeMs: number, now
 
 // A Witness investigation, with the rules-only baseline run on the same facts beside it.
 export async function investigate(deps: Deps, disputeId: string): Promise<{ witness: RunRecord; baseline: RunRecord }> {
-  const witness = await processDispute(deps, disputeId, { execute: false });
-  const baseline = await processDispute({ ...deps, assessor: new RulesAssessor(), runsDir: baselineDir(deps.runsDir) }, disputeId, { execute: false });
+  const witness = await processDispute(deps, disputeId);
+  const baseline = await processDispute({ ...deps, assessor: new RulesAssessor(), runsDir: baselineDir(deps.runsDir) }, disputeId);
   return { witness, baseline };
 }
 

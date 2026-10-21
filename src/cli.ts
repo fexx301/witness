@@ -10,7 +10,7 @@ import { PayPalClient, credentialsFromEnv } from "./paypal/client.js";
 import { Disputes } from "./paypal/disputes.js";
 import { Orders } from "./paypal/orders.js";
 import { loadPolicy } from "./policy.js";
-import { processDispute } from "./witness.js";
+import { executeReviewed, processDispute } from "./witness.js";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
@@ -38,16 +38,14 @@ async function main() {
     }
     case "run": {
       if (!arg) throw new Error("usage: witness run <dispute-id> [--execute]");
-      const execute = flags.includes("--execute");
-      const record = await processDispute(
-        { ...paypal(), mandates, assessor: new ClaudeAssessor(), policy: loadPolicy("data/policy.json"), runsDir: "data/runs" },
-        arg,
-        { execute },
-      );
+      const deps = { ...paypal(), mandates, assessor: new ClaudeAssessor(), policy: loadPolicy("data/policy.json"), runsDir: "data/runs" };
+      const record = await processDispute(deps, arg);
       console.log(record.evidencePack);
       console.log(`Planned: ${record.steps.map((s) => s.kind).join(" → ")}`);
-      if (execute) for (const r of record.results) console.log(`  ${r.ok ? "OK " : "ERR"} ${r.step}${r.debugId ? ` (debug_id ${r.debugId})` : ""}${r.error ? ` ${r.error}` : ""}`);
-      else console.log("Dry run: nothing was sent to PayPal. Re-run with --execute to act.");
+      if (!flags.includes("--execute")) return console.log("Dry run: nothing was sent to PayPal. Re-run with --execute to act.");
+      // The same guarded send as the desk: re-checked, exactly as planned, once per stage.
+      const executed = await executeReviewed(deps, record);
+      for (const r of executed.results) console.log(`  ${r.ok ? "OK " : "ERR"} ${r.step}${r.debugId ? ` (debug_id ${r.debugId})` : ""}${r.error ? ` ${r.error}` : ""}`);
       return;
     }
     case "import-mandate": {
