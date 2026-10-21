@@ -86,7 +86,7 @@ cd desk && npm install && npm run dev   # the desk on http://localhost:5173
 The desk is built on AG Studio:
 
 - **Dispute queue:** KPIs, the queue table and decisions by reason, from live sandbox disputes. AG Studio's
-  own agents built this page from a written brief, and it is saved as the desk's starting layout.
+  own agents built this page from a written brief; it was then hand-tuned and saved as the desk's starting layout.
 - **Investigation:** for the dispute you pick, the buyer's words, the mandate and its checks, a decision
   trace that says which step Claude did and which code checked, the rules-only decision beside Witness's,
   exactly what goes to PayPal, and the actions.

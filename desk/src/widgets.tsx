@@ -4,7 +4,7 @@
 // what code actually checked is called checked.
 import type { AgDefaultWidgetDefinition, AgWidgetsConfig } from "ag-studio";
 import { createWidgets, type AgRegistry, type AgWidgetDefinition } from "ag-studio-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTION_LABEL, onRefresh, sentence, sharedRows, type DisputeRow } from "./data";
 import { execute, investigate, openDispute, selectDispute, useInvestigation, useSelectedDispute, type Finding, type InvestigationView, type Step } from "./deskState";
 
@@ -114,6 +114,8 @@ function nothingSent(view: InvestigationView): string {
 function Picker() {
   const rows = useRows();
   const selected = useSelectedDispute();
+  // Scrolls a newly selected dispute into view once, not on every refresh.
+  const shown = useRef<string | null>(null);
   // The page opens on a dispute, the first still open if there is one, not on empty panels.
   useEffect(() => {
     if (rows?.length && !selected) selectDispute((rows.find((row) => !row.outcome) ?? rows[0]!).disputeId);
@@ -125,7 +127,12 @@ function Picker() {
       {rows?.map((row) => (
         <button
           key={row.disputeId}
-          ref={row.disputeId === selected ? (button) => button?.scrollIntoView({ block: "nearest" }) : undefined}
+          ref={(button) => {
+            if (button && row.disputeId === selected && shown.current !== selected) {
+              shown.current = selected;
+              button.scrollIntoView({ block: "nearest" });
+            }
+          }}
           onClick={() => openDispute(row.disputeId)}
           aria-pressed={row.disputeId === selected}
           style={{

@@ -1,5 +1,5 @@
-// The desk's starting layout. Page 1 was built by AG Studio's own agents from a written brief, then
-// exported with getState(); page 2 holds the investigation widgets.
+// The desk's starting layout. Page 1 was built by AG Studio's own agents from a written brief, exported
+// with getState(), then hand-tuned (layout, columns, chart legend); page 2 holds the investigation widgets.
 import type { AgReportState } from "ag-studio";
 import type { WitnessRegistry } from "./widgets";
 
@@ -44,6 +44,7 @@ export const initialState: AgReportState<WitnessRegistry> = {
           "w-bought-by-ai-agent": [{ field: { id: "disputes.buyer" }, model: { operator: "equals", value: "AI agent" } }],
           "w-awaiting-our-response": [{ field: { id: "disputes.paypalStatus" }, model: { operator: "equals", value: "Waiting for seller response" } }],
           "w-sent-to-paypal": [{ field: { id: "disputes.sentToPayPal" }, model: { operator: "equals", value: "Yes" } }],
+          "w-decisions-by-reason": [{ field: { id: "disputes.witnessDecision" }, model: { operator: "notEqual", value: "Not investigated" } }],
         },
       },
     },
