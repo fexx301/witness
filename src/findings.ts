@@ -13,6 +13,8 @@ export interface Finding {
   status: FindingStatus;
   summary: string;
   sources: string[];
+  // Ids Claude cited that are not supplied facts, so code did not count them.
+  uncited?: string[];
 }
 
 export interface EvidenceRequestStatus {

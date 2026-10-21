@@ -288,7 +288,7 @@ function TraceStep({ actor, title, children }: { actor: Tone; title: string; chi
 function ComparisonStep({ view, findingKey, title }: { view: InvestigationView; findingKey: string; title: string }) {
   const f = finding(view, findingKey);
   if (!f) return null;
-  const cited = f.sources.length > 0 && !f.summary.startsWith("Not used");
+  const cited = f.sources.length > 0 && !f.uncited?.length && !f.summary.startsWith("Not used");
   return (
     <>
       <TraceStep actor={ACTOR.claude} title={title}>
@@ -296,7 +296,11 @@ function ComparisonStep({ view, findingKey, title }: { view: InvestigationView; 
       </TraceStep>
       {f.status !== "not_applicable" && (
         <TraceStep actor={ACTOR.code} title="Code checked Claude's sources">
-          {cited ? `Every source Claude cited was supplied: ${f.sources.map(sourceLabel).join(", ")}.` : "A source was missing or was not a supplied fact, so this comparison is not used."}
+          {f.uncited?.length
+            ? `Claude also cited ${f.uncited.length === 1 ? "a source" : `${f.uncited.length} sources`} that ${f.uncited.length === 1 ? "is" : "are"} not a supplied fact (${f.uncited.join(", ")}), so code did not count ${f.uncited.length === 1 ? "it" : "them"}.`
+            : cited
+              ? `Every source Claude cited was supplied: ${f.sources.map(sourceLabel).join(", ")}.`
+              : "A source was missing or was not a supplied fact, so this comparison is not used."}
         </TraceStep>
       )}
     </>
@@ -502,7 +506,7 @@ function decisionReason(view: InvestigationView): string {
     return `Your policy is to ${POLICY_VERB[decision.action] ?? decision.action} when ${trigger?.[1] ?? "this happens"}.`;
   }
   if (decision.basis === "facts") return "The records support your side of this dispute.";
-  if (decision.action === "review") return "Witness does not handle this kind of claim on its own.";
+  if (decision.action === "review") return decision.why[0] ?? "This case goes to a person.";
   return decision.gaps.length && !claim.outcome ? "Witness can't decide until it has:" : "Witness can't decide: some facts are not established.";
 }
 

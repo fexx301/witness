@@ -288,11 +288,46 @@ describe("claim type", () => {
   });
 });
 
+describe("decide: unknowns are named, never acted on", () => {
+  it("does not send a statement that rests on an unknown finding", () => {
+    const facts = { "finding.fulfilment": { status: "unknown", summary: "Shipment is SHIPPED: delivery is not confirmed." }, "shipment_tracking[0]": { status: "SHIPPED" } };
+    const { sent, dropped } = checkStatements(
+      [
+        { text: "The parcel was delivered.", sources: ["finding.fulfilment"] },
+        { text: "Tracking shows the parcel shipped.", sources: ["shipment_tracking[0]"] },
+      ],
+      facts,
+    );
+    expect(sent.map((s) => s.text)).toEqual(["Tracking shows the parcel shipped."]);
+    expect(dropped.map((s) => s.text)).toEqual(["The parcel was delivered."]);
+  });
+
+  it("names what is missing, and sends conflicting records to a person", () => {
+    const conflict = decide("not_as_described", findings({ authorization: "established", instruction_compliance: "established", listing_match: "established", fulfilment: "contradicted" }), [], DEMO_POLICY);
+    expect(conflict).toMatchObject({ action: "review", gaps: [] });
+    expect(conflict.why[0]).toMatch(/records conflict/);
+    const unlisted = decide("not_as_described", findings({ instruction_compliance: "contradicted", listing_match: "not_applicable" }), [], DEMO_POLICY);
+    expect(unlisted).toMatchObject({ action: "request_evidence", gaps: [expect.stringMatching(/^listing_match: /)] });
+  });
+
+  it("does not defend while PayPal's request for proof of delivery is unanswered", () => {
+    const facts = findings({ authorization: "established", instruction_compliance: "established" });
+    const request = { type: "PROOF_OF_FULFILLMENT", resolved: false, detail: "No delivered shipment record to supply." };
+    expect(decide("unauthorized", facts, [], DEMO_POLICY).action).toBe("defend");
+    expect(decide("unauthorized", facts, [request], DEMO_POLICY)).toMatchObject({ action: "request_evidence", gaps: [expect.stringMatching(/PROOF_OF_FULFILLMENT/)] });
+  });
+
+  it("records the sources Claude cited that are not supplied facts", () => {
+    const f = comparisonFinding("listing_match", { status: "unclear", explanation: "Cannot tell.", sources: ["order.description", "photo[0]"] }, { "order.description": "Coffee" });
+    expect(f).toMatchObject({ status: "unknown", sources: ["order.description"], uncited: ["photo[0]"] });
+  });
+});
+
 describe("rules-only baseline", () => {
   it("defends an authorized, delivered purchase whatever the buyer says the agent got wrong", async () => {
     const claim = normalizeDispute(fixture<RawDispute>("dispute-snad-agent.json"));
     const established = [finding("authorization", "established"), finding("fulfilment", "established")];
-    const facts = { "finding.authorization": {}, "finding.fulfilment": {} };
+    const facts = { "finding.authorization": { status: "established" }, "finding.fulfilment": { status: "established" } };
     const a = await new RulesAssessor().assess({ claim, mandate: legacyMandate, findings: established, tracking: [] });
     expect(a.claim_type).toBe("not_as_described");
     const f = [established[0]!, comparisonFinding("instruction_compliance", a.instruction_compliance, facts), comparisonFinding("listing_match", a.listing_match, facts), established[1]!];

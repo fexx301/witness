@@ -142,7 +142,8 @@ export function comparisonFinding(
   facts: Record<string, unknown>,
 ): Finding {
   const sources = comparison.sources.filter((id) => supplied(facts, id));
-  const cited = comparison.sources.length > 0 && sources.length === comparison.sources.length;
+  const uncited = comparison.sources.filter((id) => !supplied(facts, id));
+  const cited = comparison.sources.length > 0 && !uncited.length;
   const map: Record<typeof comparison.status, FindingStatus> = {
     match: "established",
     mismatch: "contradicted",
@@ -155,17 +156,21 @@ export function comparisonFinding(
     status = "unknown";
     summary = `Not used: a citation is missing or is not a supplied fact. ${comparison.explanation}`;
   }
-  return { key, status, summary, sources };
+  return { key, status, summary, sources, ...(uncited.length ? { uncited } : {}) };
 }
 
 // A fact with no value (e.g. an order with no description) supports nothing.
 const supplied = (facts: Record<string, unknown>, id: string) => facts[id] !== undefined && facts[id] !== null;
 
-// A statement reaches PayPal or the buyer only if every id it cites is a supplied fact.
+// A finding supports a statement only once it is settled: an unknown finding cannot back a claim to PayPal.
+const supports = (facts: Record<string, unknown>, id: string) =>
+  supplied(facts, id) && (!id.startsWith("finding.") || ["established", "contradicted"].includes((facts[id] as { status?: string }).status ?? ""));
+
+// A statement reaches PayPal or the buyer only if every id it cites is a supplied fact that supports it.
 export function checkStatements(statements: Statement[], facts: Record<string, unknown>): { sent: Statement[]; dropped: Statement[] } {
   const sent: Statement[] = [];
   const dropped: Statement[] = [];
-  for (const s of statements) (s.sources.length > 0 && s.sources.every((id) => supplied(facts, id)) ? sent : dropped).push(s);
+  for (const s of statements) (s.sources.length > 0 && s.sources.every((id) => supports(facts, id)) ? sent : dropped).push(s);
   return { sent, dropped };
 }
 
@@ -231,46 +236,62 @@ export function decide(
     ...relevant.filter((f) => f.status === "unknown").map((f) => `${f.key}: ${f.summary}`),
     ...unresolved,
   ];
-  const insufficient = (...relevant: Finding[]): Decision => ({
-    action: "request_evidence",
-    basis: "insufficient_evidence",
-    why: ["The facts needed to decide this claim are not established."],
-    gaps: gapsOf(...relevant),
-  });
+  // Every request for evidence names what is missing. A comparison Claude found not applicable is
+  // named too when nothing else is; when every relevant fact is settled, the records conflict.
+  const insufficient = (...relevant: Finding[]): Decision => {
+    const gaps = gapsOf(...relevant);
+    const unsettled = relevant.filter((f) => f.status === "not_applicable").map((f) => `${f.key}: ${f.summary}`);
+    if (gaps.length || unsettled.length)
+      return { action: "request_evidence", basis: "insufficient_evidence", why: ["The facts needed to decide this claim are not established."], gaps: gaps.length ? gaps : unsettled };
+    return {
+      action: "review",
+      basis: "insufficient_evidence",
+      why: ["The records conflict, so a person should decide.", ...findings.filter((f) => f.status === "contradicted").map((f) => f.summary)],
+      gaps: [],
+    };
+  };
 
-  switch (claimType) {
-    case "item_not_received": {
-      if (fulfilment.status === "established")
-        return { action: "defend", basis: "facts", why: [fulfilment.summary], gaps: gapsOf() };
-      if (fulfilment.status === "contradicted")
-        return byPolicy(policy.confirmedNonDelivery, policy, [fulfilment.summary], gapsOf());
-      return insufficient(fulfilment);
+  const decision = byClaimType();
+  // PayPal asked for proof of delivery and Witness has no delivered record: a defence would not answer it.
+  if (decision.action === "defend" && requests.some((r) => !r.resolved && r.type === "PROOF_OF_FULFILLMENT"))
+    return { action: "request_evidence", basis: "insufficient_evidence", why: ["PayPal asked for proof of delivery, and Witness has no delivered shipment record."], gaps: unresolved };
+  return decision;
+
+  function byClaimType(): Decision {
+    switch (claimType) {
+      case "item_not_received": {
+        if (fulfilment.status === "established")
+          return { action: "defend", basis: "facts", why: [fulfilment.summary], gaps: gapsOf() };
+        if (fulfilment.status === "contradicted")
+          return byPolicy(policy.confirmedNonDelivery, policy, [fulfilment.summary], gapsOf());
+        return insufficient(fulfilment);
+      }
+      case "not_as_described": {
+        if (listing.status === "contradicted")
+          return byPolicy(policy.listingMismatch, policy, [`The merchant delivered something other than the listing: ${listing.summary}`], gapsOf());
+        if (instructions.status === "contradicted" && listing.status === "established")
+          return byPolicy(
+            policy.agentInstructionMismatch,
+            policy,
+            [`Agent instruction violation, not a merchant fulfilment failure: ${instructions.summary}`, `The merchant delivered as listed: ${listing.summary}`],
+            gapsOf(),
+          );
+        if (instructions.status === "contradicted")
+          return { ...insufficient(listing), why: [`Agent instruction violation: ${instructions.summary}`, "What was actually delivered is not established."] };
+        if (listing.status === "established" && fulfilment.status !== "contradicted" && instructions.status !== "unknown")
+          return { action: "defend", basis: "facts", why: [listing.summary, instructions.summary], gaps: gapsOf() };
+        return insufficient(listing, instructions);
+      }
+      case "unauthorized": {
+        if (authorization.status === "contradicted") return byPolicy(policy.unauthorizedCharge, policy, [authorization.summary], gapsOf());
+        if (authorization.status === "established" && instructions.status === "contradicted")
+          return byPolicy(policy.agentInstructionMismatch, policy, [authorization.summary, `But: ${instructions.summary}`], gapsOf());
+        if (authorization.status === "established" && (instructions.status === "established" || instructions.status === "not_applicable"))
+          return { action: "defend", basis: "facts", why: [authorization.summary, instructions.summary], gaps: gapsOf() };
+        return insufficient(authorization, instructions);
+      }
+      default:
+        return { action: "review", basis: "insufficient_evidence", why: ["Claim type is outside what Witness handles automatically."], gaps: gapsOf() };
     }
-    case "not_as_described": {
-      if (listing.status === "contradicted")
-        return byPolicy(policy.listingMismatch, policy, [`The merchant delivered something other than the listing: ${listing.summary}`], gapsOf());
-      if (instructions.status === "contradicted" && listing.status === "established")
-        return byPolicy(
-          policy.agentInstructionMismatch,
-          policy,
-          [`Agent instruction violation, not a merchant fulfilment failure: ${instructions.summary}`, `The merchant delivered as listed: ${listing.summary}`],
-          gapsOf(),
-        );
-      if (instructions.status === "contradicted")
-        return { ...insufficient(listing), why: [`Agent instruction violation: ${instructions.summary}`, "What was actually delivered is not established."] };
-      if (listing.status === "established" && fulfilment.status !== "contradicted" && instructions.status !== "unknown")
-        return { action: "defend", basis: "facts", why: [listing.summary, instructions.summary], gaps: gapsOf() };
-      return insufficient(listing, instructions);
-    }
-    case "unauthorized": {
-      if (authorization.status === "contradicted") return byPolicy(policy.unauthorizedCharge, policy, [authorization.summary], gapsOf());
-      if (authorization.status === "established" && instructions.status === "contradicted")
-        return byPolicy(policy.agentInstructionMismatch, policy, [authorization.summary, `But: ${instructions.summary}`], gapsOf());
-      if (authorization.status === "established" && (instructions.status === "established" || instructions.status === "not_applicable"))
-        return { action: "defend", basis: "facts", why: [authorization.summary, instructions.summary], gaps: gapsOf() };
-      return insufficient(authorization, instructions);
-    }
-    default:
-      return { action: "review", basis: "insufficient_evidence", why: ["Claim type is outside what Witness handles automatically."], gaps: gapsOf() };
   }
 }

@@ -55,6 +55,7 @@ export interface Finding {
   status: string;
   summary: string;
   sources: string[];
+  uncited?: string[];
 }
 export interface Step {
   kind: string;
