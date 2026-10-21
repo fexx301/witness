@@ -94,6 +94,14 @@ const witness: AgAiAgentRunner<WitnessParams> = {
   },
 };
 
+// Shown in an empty chat, so a first-time reader knows what to ask. Each one is a paid desk AI turn.
+const PROMPT_STARTERS = [
+  { label: "What needs a response?", prompt: "Which disputes are still open, and what did Witness decide for each? Use the queue." },
+  { label: "Where rules and Witness disagree", prompt: "List the disputes where the rules-only decision differs from Witness's decision, with both decisions and the dispute reason." },
+  { label: "Investigate the open dispute", prompt: "Find the newest open dispute in the queue and have Witness investigate it." },
+  { label: "Chart the queue", prompt: "Add a column chart to this page showing how many disputes each Witness decision covers." },
+];
+
 // AG's five built-in agents run on Claude through the Witness server, and the lead can hand a dispute
 // to Witness. Witness itself never takes an action on PayPal.
 export const ai: AgAiHarnessSetup = ({ api }) =>
@@ -109,5 +117,5 @@ export const ai: AgAiHarnessSetup = ({ api }) =>
       ],
     });
     const others = (["data", "page", "planning", "widget"] as const).map((id) => directLlmRunner({ ...builtIn[id], adapter: witnessLlmAdapter }));
-    return { agents: [lead, ...others, witness], primary: "lead" };
+    return { agents: [lead, ...others, witness], primary: "lead", promptStarters: PROMPT_STARTERS };
   });
