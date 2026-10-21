@@ -11,7 +11,7 @@ import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, gapFinding, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
 import { checkMandate, checkPayPalApproval, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
-import { completeAcceptance, firstOrderProblem } from "../src/accept.js";
+import { acceptedPage, completeAcceptance, firstOrderProblem } from "../src/accept.js";
 import { agentPurchase, recordShipment } from "../src/agentBuy.js";
 import { CONSERVATIVE_POLICY, type MerchantPolicy } from "../src/policy.js";
 import { PayPalClient, PayPalError } from "../src/paypal/client.js";
@@ -125,6 +125,12 @@ describe("mandate acceptance", () => {
     }) as typeof fetch;
     return { client: new PayPalClient({ clientId: "id", clientSecret: "secret", env: "sandbox" }, fetchImpl), captures };
   };
+
+  it("renders the buyer's confirmation page", () => {
+    const html = acceptedPage({ hash: "a".repeat(64), orderId: "5O190127TN364715T", at: "2026-10-18T11:11:59Z", vaultId: "v", alreadyRecorded: false });
+    expect(html).toContain("Oct 18, 2026, 11:11 AM UTC");
+    expect(html).toContain("5O190127TN364715T");
+  });
 
   it("records the acceptance once, linked to the PayPal order the buyer approved", async () => {
     const store = new MandateStore(mkdtempSync(join(tmpdir(), "witness-mandates-")));

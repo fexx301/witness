@@ -82,7 +82,8 @@ const day = (date: string) => {
   const parsed = new Date(`${date}T00:00:00Z`);
   return Number.isNaN(parsed.getTime()) ? date : parsed.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" });
 };
-const time = (iso: string) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC", timeZoneName: "short" });
+// dateStyle cannot be combined with timeZoneName, so the zone is written out.
+const time = (iso: string) => `${new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC`;
 
 function page(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
