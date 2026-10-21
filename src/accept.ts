@@ -3,11 +3,14 @@
 // payment that carries the mandate's hash and saves PayPal for the agent. Witness records the acceptance
 // with that PayPal order, and later checks PayPal's own record of it (checkPayPalApproval).
 
+import { readFileSync } from "node:fs";
 import type { PayPalClient } from "./paypal/client.js";
 import type { Order } from "./paypal/orders.js";
 import type { Mandate, MandateStore } from "./mandate.js";
 
 export const AMOUNT = /^\d{1,4}\.\d{2}$/;
+// The sandbox merchant's name, as the buyer also sees it at PayPal.
+const MERCHANT_NAME = "Witness test merchant";
 
 export interface FirstOrder {
   item: string;
@@ -35,7 +38,7 @@ export async function startAcceptance(client: PayPalClient, hash: string, first:
             return_url: `${origin}/accept/return`,
             cancel_url: `${origin}/accept/${hash}?item=${encodeURIComponent(first.item)}&amount=${first.amount}&cancelled=1`,
             user_action: "PAY_NOW",
-            brand_name: "Witness test merchant",
+            brand_name: MERCHANT_NAME,
           },
         },
       },
@@ -74,6 +77,12 @@ export async function completeAcceptance(client: PayPalClient, mandates: Mandate
 }
 
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const LOGO = readFileSync(new URL("../assets/witness-logo.svg", import.meta.url), "utf8");
+const day = (date: string) => {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? date : parsed.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" });
+};
+const time = (iso: string) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC", timeZoneName: "short" });
 
 function page(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -82,10 +91,14 @@ body{margin:0;background:#FBFBF8;color:#14243A;font:16px/1.5 Inter,system-ui,san
 main{max-width:560px;margin:40px auto;padding:0 16px}
 .card{background:#fff;border:1px solid #DADDE3;border-radius:6px;padding:20px}
 button{background:#2457D6;color:#fff;border:0;border-radius:6px;padding:10px 16px;font:inherit;cursor:pointer}
-.muted{color:#5B6475;font-size:14px}code{font-size:13px}</style></head><body><main>${body}</main></body></html>`;
+.muted{color:#5B6475;font-size:14px}code{font-size:13px}header svg{display:block;height:32px;width:auto;margin-bottom:24px}</style></head>
+<body><main><header>${LOGO}</header>${body}</main></body></html>`;
 }
 
 export function acceptPage(mandate: Mandate, hash: string, first: FirstOrder, problem: string | null, cancelled: boolean): string {
+  // shortcut: assumes a one-merchant mandate names this merchant; check its PayPal ID once Witness serves several.
+  const [only, ...others] = mandate.scope.merchants;
+  const merchants = only && !others.length ? `<strong>${MERCHANT_NAME}</strong> <span class="muted">(PayPal merchant ${escape(only)})</span>` : `PayPal merchants ${escape(mandate.scope.merchants.join(", "))}`;
   const instructions = mandate.instructions?.length ? `<p><strong>Item instructions</strong></p><ul>${mandate.instructions.map((i) => `<li>${escape(i)}</li>`).join("")}</ul>` : "";
   const action = problem
     ? `<p><strong>${escape(problem)}</strong></p>`
@@ -94,7 +107,7 @@ export function acceptPage(mandate: Mandate, hash: string, first: FirstOrder, pr
   return page(
     "Accept a mandate",
     `<h1>Let your shopping agent buy for you</h1><div class="card">
-<p>${escape(mandate.agent)} may buy <strong>${escape(mandate.scope.category)}</strong> from ${escape(mandate.scope.merchants.join(", "))}, up to <strong>$${escape(mandate.scope.max_amount_usd)}</strong> an order, until ${escape(mandate.valid_until)}.</p>
+<p>Your shopping agent (<code>${escape(mandate.agent)}</code>) may buy <strong>${escape(mandate.scope.category)}</strong> from ${merchants}, up to <strong>$${escape(mandate.scope.max_amount_usd)}</strong> an order, until ${escape(day(mandate.valid_until))}.</p>
 ${instructions}
 <p>First order, which you pay now: <strong>${escape(first.item)}</strong>, $${escape(first.amount)}. Approving it at PayPal also saves PayPal so your agent can reorder within these terms without you present.</p>
 ${cancelled ? `<p class="muted">You cancelled at PayPal. Nothing was accepted.</p>` : ""}${action}
@@ -105,7 +118,7 @@ ${cancelled ? `<p class="muted">You cancelled at PayPal. Nothing was accepted.</
 export function acceptedPage(accepted: Accepted): string {
   return page(
     "Mandate accepted",
-    `<h1>Accepted</h1><div class="card"><p>Your acceptance is recorded, linked to PayPal order <code>${escape(accepted.orderId)}</code>, approved at ${escape(accepted.at)}.</p>
+    `<h1>Accepted</h1><div class="card"><p>Your acceptance is recorded, linked to PayPal order <code>${escape(accepted.orderId)}</code>, approved ${escape(time(accepted.at))}.</p>
 <p>PayPal is saved for your agent.</p>
 <p class="muted">Mandate <code>${accepted.hash.slice(0, 12)}…</code>${accepted.alreadyRecorded ? " · already recorded" : ""}</p></div>`,
   );
