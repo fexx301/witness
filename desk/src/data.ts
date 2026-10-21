@@ -42,6 +42,26 @@ export async function loadRows(): Promise<DisputeRow[]> {
   return body.rows as DisputeRow[];
 }
 
+export const ACTION_LABEL: Record<string, string> = {
+  refund: "Refund",
+  defend: "Defend",
+  propose_return: "Offer a return",
+  request_evidence: "Ask for evidence",
+  review: "Send to a person",
+  "not investigated": "Not investigated",
+};
+// PayPal's codes in words: WAITING_FOR_SELLER_RESPONSE reads "Waiting for seller response".
+export const sentence = (code: string) => code.charAt(0) + code.slice(1).toLowerCase().replaceAll("_", " ");
+const action = (code: string) => ACTION_LABEL[code] ?? code;
+// What the queue shows; the server's rows keep the codes.
+const DISPLAY: Partial<Record<string, (value: string) => string>> = {
+  paypalStatus: sentence,
+  stage: sentence,
+  outcome: sentence,
+  witnessDecision: action,
+  baselineDecision: action,
+};
+
 const text = (id: keyof DisputeRow, name: string): AgFieldDefinition<WitnessRegistry> => ({ id, name, format: "textFormat" });
 const when = (id: keyof DisputeRow, name: string): AgFieldDefinition<WitnessRegistry> => ({ id, name, format: "dateTimeFormat" });
 const DATE_FIELDS = new Set<string>(["responseDue", "openedAt", "investigatedAt"]);
@@ -76,7 +96,7 @@ export const witnessSource: AgDataSourceDefinition<"row", WitnessRegistry> = {
       Object.fromEntries(
         fieldIds.map((id) => {
           const value = row[id as keyof DisputeRow];
-          return [id, DATE_FIELDS.has(id) ? (value ? new Date(value as string) : null) : value];
+          return [id, DATE_FIELDS.has(id) ? (value ? new Date(value as string) : null) : (DISPLAY[id]?.(value as string) ?? value)];
         }),
       ),
     ),

@@ -20,6 +20,11 @@ const theme = studioTheme.withParams({
   accentColor: "#2457D6",
   fontFamily: "Inter, Arial, sans-serif",
   borderRadius: 6,
+  // Built-in and Witness widgets share one title style.
+  studioWidgetTitleFontFamily: "Inter, Arial, sans-serif",
+  studioWidgetTitleFontSize: 14,
+  studioWidgetTitleFontWeight: 700,
+  studioWidgetTitleTextColor: "#14243A",
 });
 
 
@@ -44,18 +49,18 @@ function Tabs() {
   const page = usePage();
   return (
     <nav style={{ display: "flex", alignItems: "center", gap: 4, height: 44, padding: "0 12px", borderBottom: "1px solid #E3E6EB", background: "#FBFBF8", font: "14px Inter, Arial, sans-serif", color: "#14243A" }}>
-      <img src="/witness-logo.svg" alt="Witness" height={30} style={{ marginRight: 16 }} />
+      <img src="/witness-logo.svg" alt="Witness" height={30} style={{ marginRight: 16, flexShrink: 0 }} />
       {TABS.map(([id, label]) => (
         <button
           key={id}
           onClick={() => showPage(id)}
           aria-current={page === id ? "page" : undefined}
-          style={{ padding: "6px 12px", border: "none", borderBottom: `2px solid ${page === id ? "#2457D6" : "transparent"}`, background: "none", color: page === id ? "#2457D6" : "#14243A", font: "600 14px Inter, Arial, sans-serif", cursor: "pointer" }}
+          style={{ padding: "6px 12px", border: "none", borderBottom: `2px solid ${page === id ? "#2457D6" : "transparent"}`, background: "none", color: page === id ? "#2457D6" : "#14243A", font: "600 14px Inter, Arial, sans-serif", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
         >
           {label}
         </button>
       ))}
-      <span style={{ marginLeft: "auto", color: "#5B6578", fontSize: 12 }}>Sandbox only. Witness investigates; a person decides what is sent to PayPal.</span>
+      <span style={{ marginLeft: "auto", paddingLeft: 12, minWidth: 0, color: "#5B6578", fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Sandbox only. Witness investigates; a person decides what is sent to PayPal.</span>
     </nav>
   );
 }
@@ -67,6 +72,7 @@ function Desk() {
       <Tabs />
       <div style={{ flex: 1, minHeight: 0 }}>
         <AgStudio<WitnessRegistry>
+          style={{ height: "100%" }}
           data={data}
           mode="edit"
           panels={panels}
