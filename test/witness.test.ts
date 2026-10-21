@@ -635,27 +635,33 @@ describe("reference shopping agent", () => {
 });
 
 describe("dispute queue cache", () => {
-  it("serves the last read at once and reads again in the background once it is stale", async () => {
+  it("serves the last read at once, reads again in the background once stale, and reads now on refresh", async () => {
     let clock = 0;
-    let reads = 0;
-    const claim = (status: string) => ({ disputeId: "PP-R-SSN-10190213", status }) as Claim;
-    let pending: (() => void) | undefined;
-    const read = () => {
-      reads += 1;
-      if (reads === 1) return Promise.resolve([claim("OPEN")]);
-      return new Promise<Claim[]>((resolve) => (pending = () => resolve([claim("RESOLVED")])));
-    };
-    const claims = cachedClaims(read, 30_000, () => clock);
-    expect((await claims())[0]!.status).toBe("OPEN");
-    clock = 10_000;
-    expect((await claims())[0]!.status).toBe("OPEN");
-    expect(reads).toBe(1);
-    clock = 40_000;
-    expect((await claims())[0]!.status).toBe("OPEN");
-    expect((await claims())[0]!.status).toBe("OPEN");
-    expect(reads).toBe(2);
-    pending!();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect((await claims())[0]!.status).toBe("RESOLVED");
+    const reads: ((claims: Claim[]) => void)[] = [];
+    const read = () => new Promise<Claim[]>((resolve) => reads.push(resolve));
+    const status = async (claims: Promise<Claim[]>) => (await claims)[0]!.status;
+    const claim = (s: string) => [{ disputeId: "PP-R-SSN-10190213", status: s }] as Claim[];
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const queue = cachedClaims(read, 10_000, () => clock);
+
+    const first = queue.get();
+    reads[0]!(claim("OPEN"));
+    expect(await status(first)).toBe("OPEN");
+    clock = 5_000;
+    expect(await status(queue.get())).toBe("OPEN");
+    expect(reads).toHaveLength(1);
+    clock = 20_000;
+    expect(await status(queue.get())).toBe("OPEN");
+    expect(await status(queue.get())).toBe("OPEN");
+    expect(reads).toHaveLength(2); // one background read, however many requests
+    // After an action: a new read, not the one already in flight.
+    const fresh = queue.refresh();
+    expect(reads).toHaveLength(3);
+    reads[2]!(claim("RESOLVED"));
+    expect(await status(fresh)).toBe("RESOLVED");
+    // The older background read finishing late does not undo it.
+    reads[1]!(claim("WAITING_FOR_SELLER_RESPONSE"));
+    await tick();
+    expect(await status(queue.get())).toBe("RESOLVED");
   });
 });

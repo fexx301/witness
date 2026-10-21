@@ -77,19 +77,25 @@ export function rowsFor(claims: Claim[], runsDir: string): DisputeRow[] {
 
 export const disputeRows = async (deps: Deps) => rowsFor(await readClaims(deps), deps.runsDir);
 
-// Serves the last read at once, and reads again in the background once it is older than maxAgeMs.
+// Serves the last read at once and reads again in the background once it is older than maxAgeMs.
+// refresh() reads now, for after an action changed the dispute at PayPal; an older read finishing
+// later never replaces a newer one.
 export function cachedClaims(read: () => Promise<Claim[]>, maxAgeMs: number, now = Date.now) {
   let last: { at: number; claims: Claim[] } | null = null;
-  let reading: Promise<Claim[]> | null = null;
-  const refresh = () =>
-    (reading ??= read()
-      .then((claims) => ((last = { at: now(), claims }), claims))
-      .finally(() => (reading = null)));
-  return async (): Promise<Claim[]> => {
+  let started = 0;
+  let background: Promise<unknown> | null = null;
+  const refresh = async () => {
+    const mine = ++started;
+    const claims = await read();
+    if (mine === started) last = { at: now(), claims };
+    return claims;
+  };
+  const get = async (): Promise<Claim[]> => {
     if (!last) return refresh();
-    if (now() - last.at > maxAgeMs) refresh().catch(() => {});
+    if (now() - last.at > maxAgeMs) background ??= refresh().catch(() => {}).finally(() => (background = null));
     return last.claims;
   };
+  return { get, refresh };
 }
 
 // A Witness investigation, with the rules-only baseline run on the same facts beside it.

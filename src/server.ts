@@ -48,7 +48,7 @@ const deps = (): Deps => ({
   runsDir: "data/runs",
 });
 // Reading every dispute from PayPal takes seconds, so the queue shows the last read while a newer one loads.
-const queueClaims = cachedClaims(() => readClaims(deps()), 30_000);
+const queue = cachedClaims(() => readClaims(deps()), 10_000);
 
 async function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
   let raw = "";
@@ -74,7 +74,7 @@ const HASH_PATH = /^\/accept\/([0-9a-f]{64})$/;
 async function handle(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? "/", "http://desk");
 
-  if (req.method === "GET" && url.pathname === "/api/disputes") return json(res, 200, { rows: rowsFor(await queueClaims(), deps().runsDir) });
+  if (req.method === "GET" && url.pathname === "/api/disputes") return json(res, 200, { rows: rowsFor(await queue.get(), deps().runsDir) });
 
   if (req.method === "GET" && url.pathname === "/api/investigation") {
     const disputeId = url.searchParams.get("id") ?? "";
@@ -92,6 +92,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (!isLocalRequest(req.headers, req.socket.remoteAddress) && !visitorInvestigations.take())
       return json(res, 429, { error: "Today's investigations for visitors are used up. The existing investigations are still here to read." });
     const { witness, baseline } = await investigate(deps(), disputeId);
+    // The desk reloads the queue next, so it should show PayPal as it is now.
+    await queue.refresh().catch(() => {});
     return json(res, 200, {
       disputeId: witness.disputeId,
       ranAt: witness.ranAt,
@@ -119,6 +121,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (!reviewed) return json(res, 404, { error: "That reviewed investigation does not exist." });
     try {
       const executed = await executeReviewed(deps(), reviewed);
+      await queue.refresh().catch(() => {});
       return json(res, 200, { ranAt: executed.ranAt, reviewedRanAt: executed.reviewedRanAt, steps: executed.steps.map((s) => s.kind), results: executed.results });
     } catch (error) {
       if (error instanceof ExecutionRefused) return json(res, 409, { error: error.message });
@@ -186,5 +189,5 @@ createServer((req, res) => {
 }).listen(port, host, () => {
   console.log(`Witness API on http://${host}:${port}; execute and accept ${process.env.WITNESS_ALLOW_EXECUTE === "1" ? "allowed for everyone" : "local only"}`);
   // So the first visitor does not wait on PayPal.
-  queueClaims().catch((error: Error) => console.error(`could not read the dispute queue: ${error.message}`));
+  queue.get().catch((error: Error) => console.error(`could not read the dispute queue: ${error.message}`));
 });
