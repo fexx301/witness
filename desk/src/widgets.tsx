@@ -5,8 +5,8 @@
 import type { AgDefaultWidgetDefinition, AgWidgetsConfig } from "ag-studio";
 import { createWidgets, type AgRegistry, type AgWidgetDefinition } from "ag-studio-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { onRefresh, sharedRows, type DisputeRow } from "./data";
-import { execute, investigate, openDispute, useInvestigation, useSelectedDispute, type Finding, type InvestigationView, type Step } from "./deskState";
+import { ACTION_LABEL, onRefresh, sentence, sharedRows, type DisputeRow } from "./data";
+import { execute, investigate, openDispute, selectDispute, useInvestigation, useSelectedDispute, type Finding, type InvestigationView, type Step } from "./deskState";
 
 const INK = "#14243A";
 const MUTED = "#5B6578";
@@ -29,13 +29,6 @@ const STATUS: Record<string, Tone> = {
   not_applicable: { label: "Not applicable", ...NEUTRAL },
   pass: { label: "Pass", ...GOOD },
   fail: { label: "Fail", ...BAD },
-};
-const ACTION_LABEL: Record<string, string> = {
-  refund: "Refund",
-  defend: "Defend",
-  propose_return: "Offer a return",
-  request_evidence: "Ask for evidence",
-  review: "Send to a person",
 };
 const FINDING_LABEL: Record<string, string> = {
   authorization: "Buyer authorized the agent",
@@ -72,6 +65,27 @@ function Frame({ title, children }: { title: string; children: ReactNode }) {
 
 const Muted = ({ children }: { children: ReactNode }) => <p style={{ margin: "4px 0", color: MUTED }}>{children}</p>;
 
+// Times read one way everywhere, in the viewer's locale and time zone, including times inside text
+// that code or Claude wrote. What goes to PayPal is shown verbatim.
+const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+const ISO_TIME = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g;
+const readable = (text: string) => text.replace(ISO_TIME, when);
+const day = (date: string) => {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? date : parsed.toLocaleDateString(undefined, { dateStyle: "medium", timeZone: "UTC" });
+};
+
+// The queue's rows, shared with the queue page and reloaded on every refresh.
+function useRows() {
+  const [rows, setRows] = useState<DisputeRow[] | null>(null);
+  useEffect(() => {
+    const load = () => sharedRows().then(setRows, () => setRows([]));
+    load();
+    return onRefresh(load);
+  }, []);
+  return rows;
+}
+
 // The open investigation, or why there is none yet.
 function WithView({ title, children }: { title: string; children: (view: InvestigationView) => ReactNode }) {
   const disputeId = useSelectedDispute();
@@ -98,13 +112,12 @@ function nothingSent(view: InvestigationView): string {
 }
 
 function Picker() {
-  const [rows, setRows] = useState<DisputeRow[] | null>(null);
+  const rows = useRows();
   const selected = useSelectedDispute();
+  // The page opens on a dispute, the first still open if there is one, not on empty panels.
   useEffect(() => {
-    const load = () => sharedRows().then(setRows, () => setRows([]));
-    load();
-    return onRefresh(load);
-  }, []);
+    if (rows?.length && !selected) selectDispute((rows.find((row) => !row.outcome) ?? rows[0]!).disputeId);
+  }, [rows, selected]);
   return (
     <Frame title="Disputes">
       {rows === null && <Muted>Loading…</Muted>}
@@ -112,6 +125,7 @@ function Picker() {
       {rows?.map((row) => (
         <button
           key={row.disputeId}
+          ref={row.disputeId === selected ? (button) => button?.scrollIntoView({ block: "nearest" }) : undefined}
           onClick={() => openDispute(row.disputeId)}
           aria-pressed={row.disputeId === selected}
           style={{
@@ -129,9 +143,8 @@ function Picker() {
           }}
         >
           <strong>{row.disputeId}</strong>
-          <br />
-          <span style={{ color: MUTED }}>
-            {row.reason} · ${row.amountUsd.toFixed(2)} · {row.paypalStatus.toLowerCase().replaceAll("_", " ")} · Witness: {ACTION_LABEL[row.witnessDecision] ?? row.witnessDecision}
+          <span style={{ display: "block", color: MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {row.reason} · ${row.amountUsd.toFixed(2)} · {sentence(row.paypalStatus)} · Witness: {ACTION_LABEL[row.witnessDecision] ?? row.witnessDecision}
           </span>
         </button>
       ))}
@@ -154,10 +167,10 @@ function Claim() {
             </blockquote>
           ))}
           <p style={{ margin: "8px 0 4px" }}>
-            <Chip tone={ACTOR.claude} /> Claude's summary, not checked by code: {view.reviewed.assessment.claim_summary}
+            <Chip tone={ACTOR.claude} /> Claude's summary, not checked by code: {readable(view.reviewed.assessment.claim_summary)}
           </p>
           {view.reviewed.decision.discrepancy && (
-            <p style={{ margin: "8px 0 0", padding: "6px 8px", borderRadius: 6, background: BAD.bg, color: BAD.fg }}>{view.reviewed.decision.discrepancy}</p>
+            <p style={{ margin: "8px 0 0", padding: "6px 8px", borderRadius: 6, background: BAD.bg, color: BAD.fg }}>{readable(view.reviewed.decision.discrepancy)}</p>
           )}
         </>
       )}
@@ -172,7 +185,7 @@ function Mandate() {
         view.mandate ? (
           <>
             <p style={{ margin: "0 0 6px" }}>
-              {view.mandate.agent} may buy <strong>{view.mandate.scope.category}</strong>, up to ${view.mandate.scope.max_amount_usd}, until {view.mandate.valid_until}.
+              {view.mandate.agent} may buy <strong>{view.mandate.scope.category}</strong>, up to ${view.mandate.scope.max_amount_usd}, until {day(view.mandate.valid_until)}.
             </p>
             {view.mandate.instructions?.length ? (
               <>
@@ -190,7 +203,7 @@ function Mandate() {
             {view.reviewed.checks.map((check) => (
               <p key={check.rule} style={{ margin: "2px 0" }}>
                 <Chip tone={STATUS[check.status] ?? { label: check.status, ...NEUTRAL }} /> {check.rule === "paypal_approval" && <Chip tone={ACTOR.paypal} />}{" "}
-                {check.detail}
+                {readable(check.detail)}
               </p>
             ))}
             {!view.reviewed.checks.some((check) => check.rule === "paypal_approval") && (
@@ -223,7 +236,7 @@ function ComparisonStep({ view, findingKey, title }: { view: InvestigationView; 
   return (
     <>
       <TraceStep actor={ACTOR.claude} title={title}>
-        <Chip tone={STATUS[f.status] ?? { label: f.status, ...NEUTRAL }} /> {f.summary}
+        <Chip tone={STATUS[f.status] ?? { label: f.status, ...NEUTRAL }} /> {readable(f.summary)}
       </TraceStep>
       {f.status !== "not_applicable" && (
         <TraceStep actor={ACTOR.code} title="Code checked Claude's citations">
@@ -249,28 +262,28 @@ function Trace() {
             </TraceStep>
             {authorization && (
               <TraceStep actor={ACTOR.code} title="Code checked the mandate">
-                <Chip tone={STATUS[authorization.status] ?? { label: authorization.status, ...NEUTRAL }} /> {authorization.summary}
+                <Chip tone={STATUS[authorization.status] ?? { label: authorization.status, ...NEUTRAL }} /> {readable(authorization.summary)}
               </TraceStep>
             )}
             <ComparisonStep view={view} findingKey="instruction_compliance" title="Claude compared the instructions with what the agent bought" />
             <ComparisonStep view={view} findingKey="listing_match" title="Claude compared the listing with what was delivered" />
             {fulfilment && (
               <TraceStep actor={ACTOR.code} title="Code read the delivery record">
-                <Chip tone={STATUS[fulfilment.status] ?? { label: fulfilment.status, ...NEUTRAL }} /> {fulfilment.summary}
+                <Chip tone={STATUS[fulfilment.status] ?? { label: fulfilment.status, ...NEUTRAL }} /> {readable(fulfilment.summary)}
               </TraceStep>
             )}
             <TraceStep actor={ACTOR.code} title="Code checked what Claude wrote for PayPal">
               {reviewed.writing.dropped.length ? `${reviewed.writing.dropped.length} statement(s) cited no supplied fact and will not be sent.` : "Every statement cites supplied facts."}
             </TraceStep>
             <TraceStep actor={ACTOR.policy} title={`Decision: ${ACTION_LABEL[reviewed.decision.action] ?? reviewed.decision.action}`}>
-              {reviewed.decision.why.at(-1)}
-              {reviewed.decision.gaps.length > 0 && <Muted>Missing: {reviewed.decision.gaps.join("; ")}</Muted>}
+              {readable(reviewed.decision.why.at(-1) ?? "")}
+              {reviewed.decision.gaps.length > 0 && <Muted>Missing: {readable(reviewed.decision.gaps.join("; "))}</Muted>}
             </TraceStep>
             {!executed && view.lastSent && (
               <TraceStep actor={ACTOR.paypal} title="Sent to PayPal from an earlier investigation">
                 {view.lastSent.results.filter((r) => r.step !== "none").map((r, index) => (
                   <div key={index}>
-                    {STEP_LABEL[r.step] ?? r.step}: done at {new Date(view.lastSent!.ranAt).toLocaleString()}
+                    {STEP_LABEL[r.step] ?? r.step}: done {when(view.lastSent!.ranAt)}
                     {r.debugId ? `, debug ID ${r.debugId}` : ""}
                   </div>
                 ))}
@@ -390,6 +403,7 @@ function ActionButton({ onClick, disabled, primary, children }: { onClick: () =>
 function Actions() {
   const disputeId = useSelectedDispute();
   const loaded = useInvestigation(disputeId);
+  const row = useRows()?.find((r) => r.disputeId === disputeId);
   const [busy, setBusy] = useState<null | "investigating" | "sending">(null);
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -426,14 +440,14 @@ function Actions() {
         </ActionButton>
         {view && (
           <span style={{ color: MUTED }}>
-            Reviewed investigation: {new Date(view.reviewed.ranAt).toLocaleString()} · {view.reviewed.claim.status.toLowerCase().replaceAll("_", " ")}
-            {view.reviewed.claim.outcome ? `, ${view.reviewed.claim.outcome.toLowerCase().replaceAll("_", " ")}` : ""}
+            Investigated {when(view.reviewed.ranAt)}
+            {row && ` · PayPal now: ${sentence(row.outcome || row.paypalStatus)}`}
           </span>
         )}
       </div>
       {view && !canSend && !view.executed && <Muted>{nothingSent(view)}</Muted>}
-      {view?.executed && <Muted>Already sent to PayPal at {new Date(view.executed.ranAt).toLocaleString()}.</Muted>}
-      {view && !view.executed && view.lastSent && <Muted>An earlier investigation was sent to PayPal at {new Date(view.lastSent.ranAt).toLocaleString()}.</Muted>}
+      {view?.executed && <Muted>Sent to PayPal {when(view.executed.ranAt)}.</Muted>}
+      {view && !view.executed && view.lastSent && <Muted>An earlier investigation was sent to PayPal {when(view.lastSent.ranAt)}.</Muted>}
       {confirming && view && (
         <div role="dialog" aria-label="Confirm sending to PayPal" style={{ marginTop: 10, padding: 10, borderRadius: 6, border: "1px solid #2457D6", background: "#EEF3FD" }}>
           <p style={{ margin: "0 0 6px" }}>

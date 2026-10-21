@@ -43,8 +43,10 @@ export function showPage(id: PageId) {
   page.set(id);
 }
 
+export const selectDispute = (disputeId: string) => selected.set(disputeId);
+
 export function openDispute(disputeId: string) {
-  selected.set(disputeId);
+  selectDispute(disputeId);
   showPage("investigation");
 }
 
