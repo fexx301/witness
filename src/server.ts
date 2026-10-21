@@ -7,7 +7,7 @@ import { acceptPage, acceptedPage, completeAcceptance, errorPage, firstOrderProb
 import { DailyCount, isLocalRequest } from "./access.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { ClaudeAssessor, claudeClient } from "./decide.js";
-import { disputeRows, investigate, investigationView } from "./desk.js";
+import { cachedClaims, investigate, investigationView, readClaims, rowsFor } from "./desk.js";
 import { MandateStore } from "./mandate.js";
 import { PayPalClient, credentialsFromEnv } from "./paypal/client.js";
 import { Disputes } from "./paypal/disputes.js";
@@ -47,6 +47,8 @@ const deps = (): Deps => ({
   policy: loadPolicy("data/policy.json"),
   runsDir: "data/runs",
 });
+// Reading every dispute from PayPal takes seconds, so the queue shows the last read while a newer one loads.
+const queueClaims = cachedClaims(() => readClaims(deps()), 30_000);
 
 async function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
   let raw = "";
@@ -72,7 +74,7 @@ const HASH_PATH = /^\/accept\/([0-9a-f]{64})$/;
 async function handle(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? "/", "http://desk");
 
-  if (req.method === "GET" && url.pathname === "/api/disputes") return json(res, 200, { rows: await disputeRows(deps()) });
+  if (req.method === "GET" && url.pathname === "/api/disputes") return json(res, 200, { rows: rowsFor(await queueClaims(), deps().runsDir) });
 
   if (req.method === "GET" && url.pathname === "/api/investigation") {
     const disputeId = url.searchParams.get("id") ?? "";
@@ -181,6 +183,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
 
 createServer((req, res) => {
   handle(req, res).catch((error) => json(res, 500, { error: error instanceof Error ? error.message : String(error) }));
-}).listen(port, host, () =>
-  console.log(`Witness API on http://${host}:${port}; execute and accept ${process.env.WITNESS_ALLOW_EXECUTE === "1" ? "allowed for everyone" : "local only"}`),
-);
+}).listen(port, host, () => {
+  console.log(`Witness API on http://${host}:${port}; execute and accept ${process.env.WITNESS_ALLOW_EXECUTE === "1" ? "allowed for everyone" : "local only"}`);
+  // So the first visitor does not wait on PayPal.
+  queueClaims().catch((error: Error) => console.error(`could not read the dispute queue: ${error.message}`));
+});

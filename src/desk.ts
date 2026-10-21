@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RulesAssessor } from "./baseline.js";
-import { normalizeDispute } from "./claim.js";
+import { normalizeDispute, type Claim } from "./claim.js";
 import type { MandateStore } from "./mandate.js";
 import { processDispute, reviewedRecord, type Deps, type RunRecord } from "./witness.js";
 
@@ -45,14 +45,19 @@ function records(runsDir: string, disputeId: string): RunRecord[] {
 
 const latestDryRun = (runsDir: string, disputeId: string) => records(runsDir, disputeId).filter((r) => !r.executed).at(-1) ?? null;
 
-export async function disputeRows(deps: Deps): Promise<DisputeRow[]> {
-  const rows: DisputeRow[] = [];
-  for (const summary of await deps.disputes.list()) {
-    const claim = normalizeDispute(await deps.disputes.get(summary.dispute_id));
-    const witness = latestDryRun(deps.runsDir, claim.disputeId);
-    const baseline = latestDryRun(baselineDir(deps.runsDir), claim.disputeId);
-    const sent = records(deps.runsDir, claim.disputeId).some((r) => r.executed && r.results.some((result) => result.ok && result.step !== "none"));
-    rows.push({
+// PayPal's side of the queue, read in parallel. This is the slow part, so the server caches it.
+export async function readClaims(deps: Deps): Promise<Claim[]> {
+  const summaries = await deps.disputes.list();
+  return Promise.all(summaries.map(async (summary) => normalizeDispute(await deps.disputes.get(summary.dispute_id))));
+}
+
+// Witness's side comes from local runs, so it is always current.
+export function rowsFor(claims: Claim[], runsDir: string): DisputeRow[] {
+  return claims.map((claim) => {
+    const witness = latestDryRun(runsDir, claim.disputeId);
+    const baseline = latestDryRun(baselineDir(runsDir), claim.disputeId);
+    const sent = records(runsDir, claim.disputeId).some((r) => r.executed && r.results.some((result) => result.ok && result.step !== "none"));
+    return {
       disputeId: claim.disputeId,
       reason: reasonLabel(claim.reason),
       amountUsd: claim.amount.value,
@@ -66,9 +71,25 @@ export async function disputeRows(deps: Deps): Promise<DisputeRow[]> {
       responseDue: claim.responseDueAt ?? "",
       openedAt: claim.createdAt ?? "",
       investigatedAt: witness?.ranAt ?? "",
-    });
-  }
-  return rows;
+    };
+  });
+}
+
+export const disputeRows = async (deps: Deps) => rowsFor(await readClaims(deps), deps.runsDir);
+
+// Serves the last read at once, and reads again in the background once it is older than maxAgeMs.
+export function cachedClaims(read: () => Promise<Claim[]>, maxAgeMs: number, now = Date.now) {
+  let last: { at: number; claims: Claim[] } | null = null;
+  let reading: Promise<Claim[]> | null = null;
+  const refresh = () =>
+    (reading ??= read()
+      .then((claims) => ((last = { at: now(), claims }), claims))
+      .finally(() => (reading = null)));
+  return async (): Promise<Claim[]> => {
+    if (!last) return refresh();
+    if (now() - last.at > maxAgeMs) refresh().catch(() => {});
+    return last.claims;
+  };
 }
 
 // A Witness investigation, with the rules-only baseline run on the same facts beside it.

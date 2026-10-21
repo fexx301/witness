@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executeSteps, planSteps } from "../src/act.js";
 import { RulesAssessor } from "../src/baseline.js";
-import { disputeRows, investigate, investigationView } from "../src/desk.js";
+import { cachedClaims, disputeRows, investigate, investigationView } from "../src/desk.js";
 import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
@@ -631,5 +631,31 @@ describe("reference shopping agent", () => {
     await expect(agentPurchase(client, "not-a-hash", "v", "House Blend", "16.00")).rejects.toThrow(/64 hex/);
     await expect(agentPurchase(client, BOUND_HASH, "v", "House Blend", "16")).rejects.toThrow(/16.00/);
     expect(writes).toHaveLength(0);
+  });
+});
+
+describe("dispute queue cache", () => {
+  it("serves the last read at once and reads again in the background once it is stale", async () => {
+    let clock = 0;
+    let reads = 0;
+    const claim = (status: string) => ({ disputeId: "PP-R-SSN-10190213", status }) as Claim;
+    let pending: (() => void) | undefined;
+    const read = () => {
+      reads += 1;
+      if (reads === 1) return Promise.resolve([claim("OPEN")]);
+      return new Promise<Claim[]>((resolve) => (pending = () => resolve([claim("RESOLVED")])));
+    };
+    const claims = cachedClaims(read, 30_000, () => clock);
+    expect((await claims())[0]!.status).toBe("OPEN");
+    clock = 10_000;
+    expect((await claims())[0]!.status).toBe("OPEN");
+    expect(reads).toBe(1);
+    clock = 40_000;
+    expect((await claims())[0]!.status).toBe("OPEN");
+    expect((await claims())[0]!.status).toBe("OPEN");
+    expect(reads).toBe(2);
+    pending!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect((await claims())[0]!.status).toBe("RESOLVED");
   });
 });
