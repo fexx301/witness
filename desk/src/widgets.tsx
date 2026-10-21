@@ -505,6 +505,8 @@ function settle(key: string | undefined, view: InvestigationView, asksBuyer: boo
   const hash = view.reviewed.claim.mandateHash;
   switch (key) {
     case "authorization":
+      if (view.mandate)
+        return { needed: "The buyer's acceptance of this mandate, linked to their PayPal approval", who: "The buyer, through the mandate's acceptance page." };
       return hash
         ? { needed: `The mandate this order names (${hash.slice(0, 12)}…)`, who: "The buyer's agent platform. Add it to Witness with import-mandate, then investigate again." }
         : { needed: "A mandate linked to this order", who: "The buyer's agent platform, if an agent made the purchase." };
@@ -572,8 +574,13 @@ const MARK: Record<string, { symbol: string; fg: string }> = {
 function Fact({ view, findingKey }: { view: InvestigationView; findingKey: string }) {
   const f = finding(view, findingKey);
   if (!f || f.status === "not_applicable") return null;
-  const unheld = view.reviewed.claim.mandateHash ? "Witness does not hold the mandate this order names" : "No mandate is linked to this order";
-  const text = findingKey === "authorization" && f.status === "unknown" ? unheld : (FACT[findingKey]?.[f.status] ?? f.summary);
+  // Unknown authorization has three causes: no mandate named, a mandate Witness does not hold, or one it holds but cannot confirm.
+  const unknownAuthorization = view.mandate
+    ? "The buyer's authorization is not confirmed"
+    : view.reviewed.claim.mandateHash
+      ? "Witness does not hold the mandate this order names"
+      : "No mandate is linked to this order";
+  const text = findingKey === "authorization" && f.status === "unknown" ? unknownAuthorization : (FACT[findingKey]?.[f.status] ?? f.summary);
   const mark = MARK[f.status] ?? MARK.unknown!;
   return (
     <details open={f.status === "contradicted"} style={{ margin: "0 0 6px" }}>
