@@ -9,7 +9,8 @@ import { CASES } from "../eval/cases.js";
 import { caseStore, runCase } from "../eval/harness.js";
 import { cachedClaims, disputeRows, investigate, investigationView, rowsFor } from "../src/desk.js";
 import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
-import { envNumber, redactPayerIds, sameOriginRequest } from "../src/access.js";
+import { envNumber, redactIdentities, sameOriginRequest } from "../src/access.js";
+import { askRecords, BudgetExhausted, lookup, READ_TOOLS, recordsToolkit, type RecordsToolkit } from "../src/paypalRecords.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, gapFinding, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
@@ -428,9 +429,16 @@ describe("hosted desk access", () => {
     expect(sameOriginRequest({}, allowed)).toBe(true);
   });
 
-  it("replaces PayPal account IDs for visitors, leaving dispute, order and capture IDs readable", () => {
-    const view = { buyerPayerId: "P69H9YR3CJHFL", detail: "approved by PayPal account P69H9YR3CJHFL", dispute: "PP-R-YUX-10193379", order: "226667663V091234R", ranAt: "2026-10-18T11:30:46.000Z" };
-    expect(redactPayerIds(view)).toEqual({ ...view, buyerPayerId: "[PayPal account]", detail: "approved by PayPal account [PayPal account]" });
+  it("replaces PayPal account IDs and emails for visitors, leaving dispute, order and capture IDs readable", () => {
+    const view = {
+      buyerPayerId: "P69H9YR3CJHFL",
+      detail: "approved by PayPal account P69H9YR3CJHFL",
+      payer: "sb-eg5di53147258@personal.example.com",
+      dispute: "PP-R-YUX-10193379",
+      order: "226667663V091234R",
+      ranAt: "2026-10-18T11:30:46.000Z",
+    };
+    expect(redactIdentities(view)).toEqual({ ...view, buyerPayerId: "[PayPal account]", detail: "approved by PayPal account [PayPal account]", payer: "[email]" });
   });
 
   it("stops on a numeric setting that isn't a number, instead of turning a limit into no limit", () => {
@@ -909,5 +917,52 @@ describe("dispute queue cache", () => {
     reads[1]!(claim("WAITING_FOR_SELLER_RESPONSE"));
     await tick();
     expect(await status(queue.get())).toBe("RESOLVED");
+  });
+});
+
+describe("PayPal records agent (PayPal's Agent Toolkit, read-only)", () => {
+  it("configures PayPal's toolkit with exactly the read tools, against the sandbox only", () => {
+    const toolkit = recordsToolkit({ clientId: "id", clientSecret: "secret", env: "sandbox" });
+    expect(new Set(toolkit.getTools().map((t) => t.function.name))).toEqual(READ_TOOLS);
+    expect(() => recordsToolkit({ clientId: "id", clientSecret: "secret", env: "live" })).toThrow(/sandbox only/);
+  });
+
+  const fakeToolkit = () => {
+    const calls: { name: string; args: unknown }[] = [];
+    const toolkit: RecordsToolkit = {
+      getTools: () => [{ function: { name: "get_order", description: "Get an order", parameters: { type: "object", properties: { id: { type: "string" } } } } }],
+      handleToolCall: async (call) => {
+        calls.push({ name: call.function.name, args: JSON.parse(call.function.arguments) });
+        return { content: JSON.stringify({ id: "75U212118X563335X", status: "COMPLETED" }) };
+      },
+    };
+    return { toolkit, calls };
+  };
+  const fakeClaude = (replies: Partial<Anthropic.Message>[]) =>
+    ({ messages: { create: async () => ({ usage: { input_tokens: 1_000, output_tokens: 100 }, ...replies.shift() }) } }) as unknown as Anthropic;
+
+  it("refuses any tool that isn't a read tool, without calling PayPal", async () => {
+    const { toolkit, calls } = fakeToolkit();
+    expect(await lookup(toolkit, "t1", "accept_dispute_claim", { dispute_id: "PP-R-X-1" })).toEqual({ content: expect.stringContaining("Refused"), ok: false });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("lets Claude look records up, then answers, each turn charged to the desk budget", async () => {
+    const { toolkit, calls } = fakeToolkit();
+    const budget = new DailyBudget(1);
+    const claude = fakeClaude([
+      { stop_reason: "tool_use", content: [{ type: "tool_use", id: "u1", name: "get_order", input: { id: "75U212118X563335X" } } as Anthropic.ToolUseBlock] },
+      { stop_reason: "end_turn", content: [{ type: "text", text: "The order is COMPLETED (get_order)." } as Anthropic.TextBlock] },
+    ]);
+    const answer = await askRecords({ claude, model: "anthropic/claude-sonnet-5.5", toolkit, budget }, "Is order 75U212118X563335X complete?");
+    expect(answer).toEqual({ answer: "The order is COMPLETED (get_order).", lookups: [{ tool: "get_order", input: { id: "75U212118X563335X" }, ok: true }] });
+    expect(calls).toEqual([{ name: "get_order", args: { id: "75U212118X563335X" } }]);
+    // Two turns of 1,000 input and 100 output tokens on Sonnet 5.5.
+    expect(budget.remaining()).toBeCloseTo(1 - 2 * 0.003);
+  });
+
+  it("stops when the desk's AI budget can't cover a turn", async () => {
+    const { toolkit } = fakeToolkit();
+    await expect(askRecords({ claude: fakeClaude([]), model: "anthropic/claude-sonnet-5.5", toolkit, budget: new DailyBudget(0.01) }, "Anything?")).rejects.toBeInstanceOf(BudgetExhausted);
   });
 });

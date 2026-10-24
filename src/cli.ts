@@ -1,12 +1,13 @@
 // witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file>
 //         | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered]
-//         | seller-note <dispute-id> "<the merchant's note>"
+//         | seller-note <dispute-id> "<the merchant's note>" | toolkit-probe [dispute-id]
 
 import { existsSync, readFileSync } from "node:fs";
 import { agentPurchase, recordShipment } from "./agentBuy.js";
 import { normalizeDispute } from "./claim.js";
 import { ClaudeAssessor } from "./decide.js";
 import { MandateSchema, MandateStore } from "./mandate.js";
+import { lookup, recordsToolkit } from "./paypalRecords.js";
 import { PayPalClient, credentialsFromEnv } from "./paypal/client.js";
 import { Disputes } from "./paypal/disputes.js";
 import { Orders } from "./paypal/orders.js";
@@ -79,8 +80,44 @@ async function main() {
       console.log(`sent the merchant's note on ${arg}`);
       return;
     }
+    case "toolkit-probe": {
+      // Free, no model: do PayPal's Agent Toolkit read tools see the same sandbox records as Witness's own client?
+      const toolkit = recordsToolkit(credentialsFromEnv());
+      const call = async (name: string, input: unknown): Promise<any> => {
+        const { content, ok } = await lookup(toolkit, "probe", name, input);
+        console.log(`${ok ? "ok " : "ERR"} ${name} ${JSON.stringify(input)}${ok ? "" : `: ${content.slice(0, 300)}`}`);
+        if (!ok) return null;
+        try {
+          return JSON.parse(content);
+        } catch {
+          return content;
+        }
+      };
+      const check = (label: string, pass: boolean, detail: string) => console.log(`  ${pass ? "PASS" : "FAIL"} ${label}: ${detail}`);
+      const { disputes, orders } = paypal();
+      const own = (await disputes.list(50)).map((d) => d.dispute_id);
+      const listed = await call("list_disputes", { page_size: 50 });
+      const theirs: string[] = (Array.isArray(listed) ? listed : listed?.items ?? []).map((d: { dispute_id: string }) => d.dispute_id);
+      check("list_disputes", own.length > 0 && own.every((id) => theirs.includes(id)), `${theirs.length} listed; ${own.filter((id) => theirs.includes(id)).length} of Witness's ${own.length}`);
+      const id = arg ?? own[0];
+      if (!id) return console.log("No sandbox disputes to probe.");
+      const mine = await disputes.get(id);
+      const got = await call("get_dispute", { dispute_id: id });
+      check("get_dispute", got?.dispute_id === id && got?.reason === mine.reason, `${id}: ${got?.reason ?? "nothing"} (Witness reads ${mine.reason})`);
+      const captureId = mine.disputed_transactions?.[0]?.seller_transaction_id;
+      const orderId = captureId ? (await orders.capture(captureId)).supplementary_data?.related_ids?.order_id : undefined;
+      if (!orderId) return console.log("This dispute names no order to probe.");
+      const order = await call("get_order", { id: orderId });
+      const custom = mine.disputed_transactions?.[0]?.custom;
+      check("get_order", order?.id === orderId, `${orderId}: ${order?.status ?? "nothing"}${custom ? `, custom_id ${order?.purchase_units?.[0]?.custom_id === custom ? "matches" : "differs from"} the dispute's` : ""}`);
+      const tracking = await call("get_shipment_tracking", { order_id: orderId });
+      check("get_shipment_tracking", tracking !== null, JSON.stringify(tracking).slice(0, 160));
+      const transactions = await call("list_transactions", { transaction_id: captureId, search_months: 2 });
+      check("list_transactions", transactions !== null, JSON.stringify(transactions).slice(0, 160));
+      return;
+    }
     default:
-      console.log('usage: witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file.json> | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered] | seller-note <dispute-id> "<note>"');
+      console.log('usage: witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file.json> | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered] | seller-note <dispute-id> "<note>" | toolkit-probe [dispute-id]');
   }
 }
 

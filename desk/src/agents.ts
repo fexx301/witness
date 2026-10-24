@@ -47,7 +47,7 @@ type WitnessParams = { disputeId?: string } | undefined;
 
 // When another agent delegated the investigation, Studio reads the summary it receives back from a
 // complete_task call recorded in this run, so the call and its result are emitted as events.
-function* reportToDelegator(input: AgAiRunInput, ctx: AgAiAgentRunContext<WitnessParams>, summary: string): Generator<AgAiEvent> {
+function* reportToDelegator<P>(input: AgAiRunInput, ctx: AgAiAgentRunContext<P>, summary: string): Generator<AgAiEvent> {
   if (!ctx.completeTask) return;
   const toolCallId = `${input.runId}-complete`;
   yield { type: "TOOL_CALL_START", toolCallId, toolCallName: ctx.completeTask.name };
@@ -94,28 +94,70 @@ const witness: AgAiAgentRunner<WitnessParams> = {
   },
 };
 
+type RecordsParams = { question?: string } | undefined;
+
+// PayPal's own Agent Toolkit, read-only, through the Witness server: it looks up the merchant's PayPal records
+// and answers. Like Witness, it can't change anything on PayPal.
+const records: AgAiAgentRunner<RecordsParams> = {
+  id: "paypal_records",
+  name: "PayPal records",
+  description:
+    "Answers questions from the merchant's PayPal records with PayPal's Agent Toolkit, read-only: disputes, orders, shipment tracking, transactions and refunds. It can't change anything. Give it the question, with any IDs.",
+  schema: (s) => s.object({ question: s.string().optional() }),
+  run: async function* (input, ctx) {
+    yield { type: "RUN_STARTED", threadId: input.threadId, runId: input.runId };
+    const last = [...input.messages].reverse().find((m) => m.role === "user");
+    const question = ctx.params?.question ?? (last?.role === "user" ? last.content : undefined);
+    if (!question?.trim()) {
+      yield* say(`${input.runId}-ask`, "What should I look up in PayPal? For example, the tracking for a dispute's payment, or an order's status.");
+    } else {
+      yield* say(`${input.runId}-progress`, "Looking it up in PayPal with PayPal's Agent Toolkit, read-only…");
+      try {
+        const response = await fetch("/api/paypal-records", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ question }),
+          signal: ctx.signal,
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error ?? `Witness server returned ${response.status}`);
+        const { answer, lookups } = body as { answer: string; lookups: { tool: string; ok: boolean }[] };
+        const used = lookups.map((l) => `${l.tool}${l.ok ? "" : " (failed)"}`).join(", ") || "none";
+        const summary = `${answer}\n\nPayPal lookups (read-only): ${used}.`;
+        yield* say(`${input.runId}-result`, summary);
+        yield* reportToDelegator(input, ctx, summary);
+      } catch (error) {
+        if (!ctx.signal?.aborted) yield { type: "RUN_ERROR", message: error instanceof Error ? error.message : String(error) };
+        return;
+      }
+    }
+    yield { type: "RUN_FINISHED", threadId: input.threadId, runId: input.runId };
+  },
+};
+
 // Shown in an empty chat, so a first-time reader knows what to ask. Each one is a paid desk AI turn.
 const PROMPT_STARTERS = [
   { label: "What needs a response?", prompt: "Which disputes are still open, and what did Witness decide for each? Use the queue." },
   { label: "Where rules and Witness disagree", prompt: "List the disputes where the rules-only decision differs from Witness's decision, with both decisions and the dispute reason." },
   { label: "Investigate the open dispute", prompt: "Find the newest open dispute in the queue and have Witness investigate it." },
   { label: "Chart the queue", prompt: "Add a column chart to this page showing how many disputes each Witness decision covers." },
+  { label: "Ask PayPal's records", prompt: "Find the newest open dispute in the queue, then ask the PayPal records agent what PayPal's shipment tracking says for its payment." },
 ];
 
-// AG's five built-in agents run on Claude through the Witness server, and the lead can hand a dispute
-// to Witness. Witness itself never takes an action on PayPal.
+// AG's five built-in agents run on Claude through the Witness server. The lead can hand a dispute to Witness,
+// and a question about PayPal's records to the PayPal records agent. Neither takes an action on PayPal.
 export const ai: AgAiHarnessSetup = ({ api }) =>
   createAiHarness(api, ({ builtIn, tools }) => {
     const lead = directLlmRunner({
       ...builtIn.lead,
       adapter: witnessLlmAdapter,
       instructions: (ctx, params) =>
-        `${builtIn.lead.instructions?.(ctx, params) ?? ""}\n\nWhen the user asks about a PayPal dispute, delegate it to the witness agent with its dispute ID, then report Witness's findings and decision as given. Witness only investigates; it never acts on PayPal.`,
+        `${builtIn.lead.instructions?.(ctx, params) ?? ""}\n\nWhen the user asks about a PayPal dispute, delegate it to the witness agent with its dispute ID, then report Witness's findings and decision as given. Witness only investigates; it never acts on PayPal. When the user asks about PayPal records beyond the queue (an order, its shipment tracking, transactions or refunds), delegate the question to the paypal_records agent with any IDs it needs; it only reads.`,
       tools: (ctx, params) => [
         ...(builtIn.lead.tools?.(ctx, params) ?? []).filter((tool) => tool.name !== "delegate_to"),
-        tools.delegateTo(["data", "page", "planning", "widget", "witness"]),
+        tools.delegateTo(["data", "page", "planning", "widget", "witness", "paypal_records"]),
       ],
     });
     const others = (["data", "page", "planning", "widget"] as const).map((id) => directLlmRunner({ ...builtIn[id], adapter: witnessLlmAdapter }));
-    return { agents: [lead, ...others, witness], primary: "lead", promptStarters: PROMPT_STARTERS };
+    return { agents: [lead, ...others, witness, records], primary: "lead", promptStarters: PROMPT_STARTERS };
   });

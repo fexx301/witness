@@ -5,11 +5,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { acceptPage, acceptedPage, completeAcceptance, errorPage, firstOrderProblem, startAcceptance } from "./accept.js";
-import { DailyCount, envNumber, isLocalRequest, redactPayerIds, sameOriginRequest } from "./access.js";
+import { DailyCount, envNumber, isLocalRequest, redactIdentities, sameOriginRequest } from "./access.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { ClaudeAssessor, claudeClient } from "./decide.js";
 import { cachedClaims, investigate, investigationView, readClaims, rowsFor } from "./desk.js";
 import { MandateStore } from "./mandate.js";
+import { askRecords, BudgetExhausted, recordsToolkit, type RecordsToolkit } from "./paypalRecords.js";
 import { PayPalClient, credentialsFromEnv } from "./paypal/client.js";
 import { Disputes } from "./paypal/disputes.js";
 import { Orders } from "./paypal/orders.js";
@@ -40,8 +41,8 @@ const executeAllowed = (req: IncomingMessage) => process.env.WITNESS_ALLOW_EXECU
 const origin = process.env.WITNESS_PUBLIC_URL ?? `http://${host}:${port}`;
 // The sites a browser may POST from: the hosted desk, this server, and the desk's dev server.
 const allowedOrigins = [new URL(origin).origin, `http://${host}:${port}`, `http://localhost:${port}`, "http://localhost:5173", "http://127.0.0.1:5173"];
-// Visitors to a hosted desk see records with PayPal account IDs replaced.
-const forViewer = <T>(req: IncomingMessage, body: T): T => (isLocalRequest(req.headers, req.socket.remoteAddress) ? body : redactPayerIds(body));
+// Visitors to a hosted desk see records with PayPal account IDs and emails replaced.
+const forViewer = <T>(req: IncomingMessage, body: T): T => (isLocalRequest(req.headers, req.socket.remoteAddress) ? body : redactIdentities(body));
 
 const client = new PayPalClient(credentialsFromEnv());
 const deps = (): Deps => ({
@@ -52,6 +53,8 @@ const deps = (): Deps => ({
   policy: loadPolicy("data/policy.json"),
   runsDir: "data/runs",
 });
+// Built on first use, so the server starts even if the toolkit can't.
+let toolkit: RecordsToolkit | undefined;
 // Reading every dispute from PayPal takes seconds, so the queue shows the last read while a newer one loads.
 const queue = cachedClaims(() => readClaims(deps()), 10_000);
 
@@ -167,6 +170,25 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       if (problem) return html(res, 400, acceptPage(mandate, acceptHash, first, problem, false));
       res.writeHead(303, { location: await startAcceptance(client, acceptHash, first, origin) });
       return res.end();
+    }
+  }
+
+  // PayPal's Agent Toolkit, read-only, for the desk's PayPal records agent. Its turns share the desk's AI budget.
+  if (req.method === "POST" && url.pathname === "/api/paypal-records") {
+    const raw = await readBody(req, 4096);
+    if (raw === null) return json(res, 413, { error: "Request too large." });
+    const { question } = JSON.parse(raw || "{}") as { question?: unknown };
+    if (typeof question !== "string" || !question.trim() || question.length > 1000) return json(res, 400, { error: "Ask a question of up to 1,000 characters." });
+    const { client: claude, deskModel: model } = claudeClient();
+    const abort = new AbortController();
+    res.on("close", () => abort.abort());
+    try {
+      toolkit ??= recordsToolkit(credentialsFromEnv());
+      const answer = await askRecords({ claude, model, toolkit, budget: llmBudget, signal: abort.signal }, question.trim());
+      return json(res, 200, forViewer(req, answer));
+    } catch (error) {
+      if (error instanceof BudgetExhausted) return json(res, 429, { error: `${error.message} Witness investigations still work.` });
+      throw error;
     }
   }
 

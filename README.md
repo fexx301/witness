@@ -134,6 +134,12 @@ The desk is built on AG Studio:
   beside Witness's, and exactly what goes to PayPal.
 - **Chat:** the Witness agent and AG Studio's built-in agents, which run on Claude through the Witness API
   (`WITNESS_DESK_MODEL`, Sonnet 5.5 by default). Asked about a dispute, the lead agent hands it to Witness.
+  Asked about PayPal's records beyond the queue (an order, its tracking, transactions or refunds), it hands the
+  question to the **PayPal records** agent. That agent answers with PayPal's own Agent Toolkit
+  (`@paypal/agent-toolkit`), configured with reading only: list and get disputes, get an order, get shipment
+  tracking, list transactions and get a refund. The toolkit's acting tools are switched off and refused again in
+  code, and its turns share the desk's AI budget. `npm run witness -- toolkit-probe [dispute-id]` checks, with no
+  model, that the toolkit sees the same sandbox records as Witness's own PayPal client.
 
 The desk's AI only investigates. **Execute decision** is a button for a person: it sends exactly the
 investigation that person reviewed, with no new assessment, and is refused if the dispute changed in a way

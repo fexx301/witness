@@ -35,10 +35,12 @@ export function sameOriginRequest(headers: IncomingHttpHeaders, allowedOrigins: 
   return !origin || allowedOrigins.includes(origin);
 }
 
-// PayPal payer IDs (13 capitals and digits) are replaced before a visitor sees a record. Merchant IDs
-// have the same shape and are replaced too.
+// PayPal account IDs (13 capitals and digits; merchant IDs have the same shape) and email addresses are
+// replaced before a visitor sees a record or a PayPal lookup.
 const PAYER_ID = /\b(?=[A-Z0-9]{13}\b)(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*\d)[A-Z0-9]{13}\b/g;
-export const redactPayerIds = <T>(value: T): T => JSON.parse(JSON.stringify(value).replace(PAYER_ID, "[PayPal account]")) as T;
+const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+export const redactIdentities = <T>(value: T): T =>
+  JSON.parse(JSON.stringify(value).replace(PAYER_ID, "[PayPal account]").replace(EMAIL, "[email]")) as T;
 
 // A numeric setting from the environment. A typo must stop the server, not quietly become NaN, which
 // would turn a spending limit into no limit.
