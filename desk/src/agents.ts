@@ -69,6 +69,7 @@ const witness: AgAiAgentRunner<WitnessParams> = {
     const id = ctx.params?.disputeId?.match(DISPUTE_ID)?.[0] ?? (last?.role === "user" ? last.content.match(DISPUTE_ID)?.[0] : undefined);
     if (!id) {
       yield* say(`${input.runId}-ask`, "Give me a PayPal dispute ID to investigate, like PP-R-YUX-10193379.");
+      yield* reportToDelegator(input, ctx, "No dispute ID was given, so nothing was investigated.");
     } else {
       yield* say(`${input.runId}-progress`, `Investigating ${id}: reading the dispute, the order, tracking and the buyer's mandate. Claude is comparing them, which takes about 20 seconds…`);
       try {
@@ -86,8 +87,15 @@ const witness: AgAiAgentRunner<WitnessParams> = {
         requestRefresh();
         openDispute(id);
       } catch (error) {
-        if (!ctx.signal?.aborted) yield { type: "RUN_ERROR", message: error instanceof Error ? error.message : String(error) };
-        return;
+        if (ctx.signal?.aborted) return;
+        const message = error instanceof Error ? error.message : String(error);
+        if (!ctx.completeTask) {
+          yield { type: "RUN_ERROR", message };
+          return;
+        }
+        // Delegated: the lead is told why, not only that the run finished.
+        yield* say(`${input.runId}-failed`, `That didn't work: ${message}`);
+        yield* reportToDelegator(input, ctx, `Failed: ${message}`);
       }
     }
     yield { type: "RUN_FINISHED", threadId: input.threadId, runId: input.runId };
@@ -110,6 +118,7 @@ const records: AgAiAgentRunner<RecordsParams> = {
     const question = ctx.params?.question ?? (last?.role === "user" ? last.content : undefined);
     if (!question?.trim()) {
       yield* say(`${input.runId}-ask`, "What should I look up in PayPal? For example, the tracking for a dispute's payment, or an order's status.");
+      yield* reportToDelegator(input, ctx, "No question was given, so nothing was looked up.");
     } else {
       yield* say(`${input.runId}-progress`, "Looking it up in PayPal with PayPal's Agent Toolkit, read-only…");
       try {
@@ -127,8 +136,15 @@ const records: AgAiAgentRunner<RecordsParams> = {
         yield* say(`${input.runId}-result`, summary);
         yield* reportToDelegator(input, ctx, summary);
       } catch (error) {
-        if (!ctx.signal?.aborted) yield { type: "RUN_ERROR", message: error instanceof Error ? error.message : String(error) };
-        return;
+        if (ctx.signal?.aborted) return;
+        const message = error instanceof Error ? error.message : String(error);
+        if (!ctx.completeTask) {
+          yield { type: "RUN_ERROR", message };
+          return;
+        }
+        // Delegated: the lead is told why, not only that the run finished.
+        yield* say(`${input.runId}-failed`, `That didn't work: ${message}`);
+        yield* reportToDelegator(input, ctx, `Failed: ${message}`);
       }
     }
     yield { type: "RUN_FINISHED", threadId: input.threadId, runId: input.runId };

@@ -226,9 +226,16 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   json(res, 404, { error: "Not found." });
 }
 
-createServer((req, res) => {
+const server = createServer((req, res) => {
   handle(req, res).catch((error) => json(res, 500, { error: error instanceof Error ? error.message : String(error) }));
-}).listen(port, host, () => {
+});
+// Most often an earlier Witness server still running, which the desk would otherwise keep talking to.
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code !== "EADDRINUSE") throw error;
+  console.error(`Port ${port} is already in use, probably by an earlier Witness server. Stop it with: kill $(lsof -ti tcp:${port}) (or set WITNESS_PORT).`);
+  process.exit(1);
+});
+server.listen(port, host, () => {
   console.log(`Witness API on http://${host}:${port}; execute and accept ${process.env.WITNESS_ALLOW_EXECUTE === "1" ? "allowed for everyone" : "local only"}`);
   // So the first visitor does not wait on PayPal.
   queue.get().catch((error: Error) => console.error(`could not read the dispute queue: ${error.message}`));
