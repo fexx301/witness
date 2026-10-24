@@ -154,7 +154,10 @@ decide all 18. These are synthetic cases and a single run, not a measure of real
 
 `eval/demo-cases.ts` holds the five cases the demo stages, under one mandate: the same complaint with the fault
 on the merchant's side or the agent's, an instruction that names no catalogue term, and two controls. The
-rules-only baseline decides 3 of the 5. Claude has not run on them yet: `npx tsx eval/run.ts --demo --witness`.
+rules-only baseline decides 3 of the 5: it defends the packing error and the caffeinated purchase. Witness (Claude Opus)
+decided all 5 in one run (`eval/results/2026-10-24T10-18-50-673Z-demo.json`), reading the same "this bag is ground"
+as the merchant's mistake in one case and the agent's in the other. One run on synthetic cases, not a measure of
+real disputes.
 
 ## License
 

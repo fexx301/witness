@@ -1,7 +1,7 @@
 // The Act 1 set: the cases the demo stages, with labels committed before any run of either assessor.
 // SYNTHETIC, like cases.ts. Written on 2026-10-24 after a test showed a catalogue-aware rules tool
 // decides the wrong-grind cases too. Each label is what the demo merchant's policy calls for; the
-// rules-only baseline is deterministic, so its outcomes follow from its code. Claude has not run on these.
+// rules-only baseline is deterministic, so its outcomes follow from its code. Claude had not run on these when the labels were committed.
 //
 // Every case uses the one mandate the staging session will create. The pair D1/D2 is the same
 // complaint with the fault on opposite sides; D3's instruction names no catalogue term; D4 and D5
