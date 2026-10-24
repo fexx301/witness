@@ -30,8 +30,9 @@ const theme = studioTheme.withParams({
 
 const data = { sources: [witnessSource] };
 // AG Studio's canvas has a fixed grid and a 720 px minimum, so it can't reflow. On a narrower screen, decided
-// once at load, the chat is hidden and the pages scroll sideways, with a note pointing to the video.
-const narrow = window.matchMedia("(max-width: 899px)").matches;
+// once at load, the chat is hidden and the pages scroll sideways, with a note pointing to the video. "?chat" in the
+// address keeps the chat anyway, for a laptop browser that isn't full width.
+const narrow = window.matchMedia("(max-width: 899px)").matches && !new URLSearchParams(window.location.search).has("chat");
 const videoUrl = import.meta.env.VITE_WITNESS_VIDEO_URL as string | undefined;
 // Edit mode keeps the chat; the only panel shown is the AI assistant, so the desk reads as a dashboard.
 const panels = { edit: { left: narrow ? [] : ["ai" as const], right: [] } };
@@ -72,7 +73,11 @@ function Tabs() {
 function NarrowNote() {
   return (
     <p style={{ margin: 0, padding: "8px 12px", background: "#EEF2FB", borderBottom: "1px solid #D6DEF2", font: "13px/1.4 Inter, Arial, sans-serif", color: "#14243A" }}>
-      This desk is laid out for a laptop or desktop screen. Here the chat is hidden and the pages scroll sideways.
+      This desk is laid out for a laptop or desktop screen. Here the chat is hidden and the pages scroll sideways.{" "}
+      <a href="?chat" style={{ color: "#2457D6", fontWeight: 600 }}>
+        Show the chat anyway
+      </a>
+      .
       {videoUrl && (
         <>
           {" "}
