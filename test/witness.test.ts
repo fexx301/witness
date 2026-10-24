@@ -438,6 +438,8 @@ describe("model provider", () => {
   });
 });
 
+const RETURN_TO = { address_line_1: "1 Roastery Way", admin_area_2: "Portland", admin_area_1: "OR", postal_code: "97201", country_code: "US" };
+
 describe("planning", () => {
   const files = [{ filename: "witness.txt", contentType: "text/plain", data: "pack" }];
   const decision = (action: Decision["action"]): Decision => ({ action, basis: "facts", why: ["because"], gaps: ["fulfilment: unknown"] });
@@ -457,11 +459,13 @@ describe("planning", () => {
       { kind: "provide_evidence", evidenceType: "PROOF_OF_FULFILLMENT", notes: "notes", files: [], trackingInfo: [{ carrier_name: "OTHER", carrier_name_other: "Evri", tracking_number: "1Z1" }] },
     ]);
     expect(planSteps(evidence, decision("refund"), writing, files).map((s) => s.kind)).toEqual(["accept_claim"]);
-    expect(planSteps(evidence, decision("propose_return"), writing, files)[0]).toMatchObject({ kind: "accept_claim", acceptClaimType: "REFUND_WITH_RETURN" });
+    expect(planSteps(evidence, decision("propose_return"), writing, files, [], RETURN_TO)[0]).toMatchObject({ kind: "accept_claim", acceptClaimType: "REFUND_WITH_RETURN", returnAddress: RETURN_TO });
+    // PayPal requires a return address for a return, so without one nothing is planned.
+    expect(planSteps(evidence, decision("propose_return"), writing, files)[0]).toMatchObject({ kind: "none", reason: expect.stringContaining("no return address") });
 
     const inquiry = claim({ stage: "INQUIRY", actions: new Set(["send_message", "escalate", "make_offer"]), offerTypes: ["REFUND_WITH_RETURN"] });
     expect(planSteps(inquiry, decision("defend"), writing, files).map((s) => s.kind)).toEqual(["send_message", "escalate"]);
-    expect(planSteps(inquiry, decision("propose_return"), writing, files).map((s) => s.kind)).toEqual(["make_offer"]);
+    expect(planSteps(inquiry, decision("propose_return"), writing, files, [], RETURN_TO)).toMatchObject([{ kind: "make_offer", returnAddress: RETURN_TO }]);
 
     const reviewOnly = claim({ actions: new Set(["provide_supporting_info"]) });
     expect(planSteps(reviewOnly, decision("refund"), writing, files)[0]?.kind).toBe("none");
@@ -721,6 +725,22 @@ describe("pipeline", () => {
     const results = await executeSteps(disputes, "X", [{ kind: "send_message", message: "hi" }, { kind: "escalate", note: "n" }]);
     expect(results).toHaveLength(1);
     expect(results[0]?.error).toContain("ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE");
+  });
+
+  it("sends the merchant's return address with a return, as PayPal requires", async () => {
+    const bodies: unknown[] = [];
+    const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
+      if (String(url).endsWith("/v1/oauth2/token")) return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }));
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response("{}");
+    }) as typeof fetch;
+    const disputes = new Disputes(new PayPalClient({ clientId: "i", clientSecret: "s", env: "sandbox" }, fetchImpl));
+    await executeSteps(disputes, "X", [
+      { kind: "accept_claim", note: "n", acceptClaimType: "REFUND_WITH_RETURN", returnAddress: RETURN_TO },
+      { kind: "accept_claim", note: "n", acceptClaimType: "REFUND" },
+    ]);
+    expect(bodies[0]).toEqual({ note: "n", accept_claim_type: "REFUND_WITH_RETURN", return_shipping_address: RETURN_TO });
+    expect(bodies[1]).toEqual({ note: "n", accept_claim_type: "REFUND" });
   });
 });
 

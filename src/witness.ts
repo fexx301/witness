@@ -101,7 +101,7 @@ export async function executeReviewed(deps: Deps, reviewed: RunRecord): Promise<
 
   const files: EvidenceFile[] = [{ filename: `witness-${live.disputeId}.txt`, contentType: "text/plain", data: reviewed.evidencePack }];
   if (now.mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(now.mandate, null, 2) });
-  const steps = planSteps(live, reviewed.decision, reviewed.writing, files, now.tracking);
+  const steps = planSteps(live, reviewed.decision, reviewed.writing, files, now.tracking, deps.policy.returnAddress);
   if (sends(steps) !== sends(reviewed.steps))
     throw new ExecutionRefused(`PayPal now allows "${sends(steps)}", not the reviewed "${sends(reviewed.steps)}". Investigate again before acting.`);
   if (steps.every((s) => s.kind === "none")) throw new ExecutionRefused("This review sends nothing to PayPal.");
@@ -203,7 +203,7 @@ export async function processDispute(deps: Deps, disputeId: string): Promise<Run
   const files: EvidenceFile[] = [{ filename: `witness-${claim.disputeId}.txt`, contentType: "text/plain", data: evidencePack }];
   if (mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(mandate, null, 2) });
 
-  const steps = planSteps(claim, decision, writing, files, tracking);
+  const steps = planSteps(claim, decision, writing, files, tracking, deps.policy.returnAddress);
 
 
   const record: RunRecord = {

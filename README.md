@@ -92,7 +92,13 @@ npm run witness -- run <dispute-id> --execute  # acts on the sandbox dispute
 npm test
 ```
 
-Merchant policy lives in `data/policy.json`. Without one, Witness refunds nothing automatically.
+Merchant policy lives in `data/policy.json`. Without one, Witness refunds nothing automatically. To offer
+returns, the policy needs the address items go back to, in PayPal's address fields, because PayPal requires it
+for a return; without it a return is planned as nothing, with that reason:
+
+```json
+"returnAddress": { "address_line_1": "1 Roastery Way", "admin_area_2": "Portland", "admin_area_1": "OR", "postal_code": "97201", "country_code": "US" }
+```
 
 To stage a demo case, the reference shopping agent charges the buyer's saved PayPal with no buyer present,
 under a mandate Witness holds, and the merchant's shipment can be recorded as shipped or delivered:

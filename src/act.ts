@@ -5,14 +5,15 @@ import type { Claim } from "./claim.js";
 import { gapFinding, type Decision, type Writing } from "./decide.js";
 import type { Disputes, EvidenceFile, TrackingInfo } from "./paypal/disputes.js";
 import type { Tracking } from "./paypal/orders.js";
+import type { ReturnAddress } from "./policy.js";
 
 export type Step =
   | { kind: "provide_evidence"; evidenceType: string; notes: string; files: EvidenceFile[]; trackingInfo?: TrackingInfo[] }
   | { kind: "provide_supporting_info"; notes: string; files: EvidenceFile[] }
   | { kind: "send_message"; message: string }
   | { kind: "escalate"; note: string }
-  | { kind: "accept_claim"; note: string; acceptClaimType: string }
-  | { kind: "make_offer"; note: string; offerType: string; amount: { currency_code: string; value: string } }
+  | { kind: "accept_claim"; note: string; acceptClaimType: string; returnAddress?: ReturnAddress }
+  | { kind: "make_offer"; note: string; offerType: string; amount: { currency_code: string; value: string }; returnAddress: ReturnAddress }
   | { kind: "none"; reason: string };
 
 const clip = (text: string) => text.slice(0, 2000);
@@ -39,7 +40,7 @@ function evidenceStep(claim: Claim, notes: string, files: EvidenceFile[], tracki
   return { kind: "provide_evidence", evidenceType: "OTHER", notes, files };
 }
 
-export function planSteps(claim: Claim, decision: Decision, writing: Writing, files: EvidenceFile[], tracking: Tracking[] = []): Step[] {
+export function planSteps(claim: Claim, decision: Decision, writing: Writing, files: EvidenceFile[], tracking: Tracking[] = [], returnAddress?: ReturnAddress): Step[] {
   const notes = clip(writing.evidenceNotes);
   const reason = decision.why[0] ?? decision.action;
   switch (decision.action) {
@@ -54,8 +55,10 @@ export function planSteps(claim: Claim, decision: Decision, writing: Writing, fi
         return [{ kind: "accept_claim", note: clip(`Witness: ${reason}`), acceptClaimType: "REFUND" }];
       return [{ kind: "none", reason: "Refund decided, but PayPal does not offer a refund response on this dispute right now." }];
     case "propose_return":
+      // PayPal requires the address the buyer sends the item back to.
+      if (!returnAddress) return [{ kind: "none", reason: "Return proposed, but the merchant policy has no return address, which PayPal requires for a return." }];
       if (claim.actions.has("accept_claim") && claim.acceptClaimTypes.includes("REFUND_WITH_RETURN"))
-        return [{ kind: "accept_claim", note: clip(`Witness: ${reason}`), acceptClaimType: "REFUND_WITH_RETURN" }];
+        return [{ kind: "accept_claim", note: clip(`Witness: ${reason}`), acceptClaimType: "REFUND_WITH_RETURN", returnAddress }];
       if (claim.actions.has("make_offer") && claim.offerTypes.includes("REFUND_WITH_RETURN"))
         return [
           {
@@ -63,6 +66,7 @@ export function planSteps(claim: Claim, decision: Decision, writing: Writing, fi
             note: clip(`Witness: ${reason}`),
             offerType: "REFUND_WITH_RETURN",
             amount: { currency_code: claim.amount.currency, value: claim.amount.value.toFixed(2) },
+            returnAddress,
           },
         ];
       return [{ kind: "none", reason: "Return proposed, but PayPal does not offer a return response on this dispute right now." }];
@@ -104,10 +108,10 @@ export async function executeSteps(disputes: Disputes, disputeId: string, steps:
           ({ debugId } = await disputes.escalate(disputeId, step.note));
           break;
         case "accept_claim":
-          ({ debugId } = await disputes.acceptClaim(disputeId, step.note, step.acceptClaimType));
+          ({ debugId } = await disputes.acceptClaim(disputeId, step.note, step.acceptClaimType, step.returnAddress));
           break;
         case "make_offer":
-          ({ debugId } = await disputes.makeOffer(disputeId, step.note, step.offerType, step.amount));
+          ({ debugId } = await disputes.makeOffer(disputeId, step.note, step.offerType, step.amount, step.returnAddress));
           break;
         case "none":
           results.push({ step: step.kind, ok: true });

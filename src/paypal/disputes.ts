@@ -1,6 +1,7 @@
 // PayPal Disputes API (v1). Only the fields Witness reads are typed.
 
 import type { PayPalClient } from "./client.js";
+import type { ReturnAddress } from "../policy.js";
 
 export interface Money {
   currency_code: string;
@@ -91,15 +92,15 @@ export class Disputes {
     });
   }
 
-  acceptClaim(id: string, note: string, acceptClaimType = "REFUND") {
+  acceptClaim(id: string, note: string, acceptClaimType = "REFUND", returnAddress?: ReturnAddress) {
     return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/accept-claim`, {
-      json: { note, accept_claim_type: acceptClaimType },
+      json: { note, accept_claim_type: acceptClaimType, ...(returnAddress ? { return_shipping_address: returnAddress } : {}) },
     });
   }
 
-  makeOffer(id: string, note: string, offerType: string, amount: Money) {
+  makeOffer(id: string, note: string, offerType: string, amount: Money, returnAddress?: ReturnAddress) {
     return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/make-offer`, {
-      json: { note, offer_type: offerType, offer_amount: amount },
+      json: { note, offer_type: offerType, offer_amount: amount, ...(returnAddress ? { return_shipping_address: returnAddress } : {}) },
     });
   }
 
