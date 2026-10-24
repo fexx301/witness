@@ -16,6 +16,26 @@ apart. For a buyer's own purchase, only the delivery and listing questions apply
 
 Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run against live PayPal.
 
+## For judges: five minutes
+
+1. **Watch the video** (under 3 minutes): [YouTube link, added at submission].
+2. **Open the hosted desk**: [link, added at submission]. No login. Open a dispute from the queue: the case
+   summary gives Witness's decision and the reason, the four facts in plain words, and what a rules-only tool
+   would have chosen. In the chat, ask it to investigate a dispute by its ID: AG Studio's lead agent hands it to
+   Witness, which runs a fresh dry run. Sending to PayPal is off for visitors; the video shows it.
+3. **Run it with no keys** (Node 22, under a minute):
+   ```bash
+   git clone https://github.com/fexx301/witness && cd witness && npm ci
+   npm test                     # the test suite
+   npx tsx eval/run.ts          # the rules-only baseline on the 18 eval cases: 16 right
+   npx tsx eval/run.ts --demo   # and on the 5 cases the demo stages: 3 right
+   ```
+   Witness's recorded runs on the same cases are `eval/results/2026-10-20T19-41-35-642Z.json` (18 of 18) and
+   `eval/results/2026-10-24T10-18-50-673Z-demo.json` (5 of 5): synthetic cases, one run each.
+4. **See where Claude reads and code decides**: `src/decide.ts` (what Claude is asked, how its citations are
+   checked, and the decision rules), `src/baseline.ts` (the rules-only tool) and `src/witness.ts` (the reviewed,
+   send-once path to PayPal).
+
 ## How Witness investigates a dispute
 
 1. **Read**: the PayPal dispute, the buyer's own words, PayPal's evidence requests, and which responses
