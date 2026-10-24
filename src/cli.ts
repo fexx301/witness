@@ -94,6 +94,8 @@ async function main() {
         }
       };
       const check = (label: string, pass: boolean, detail: string) => console.log(`  ${pass ? "PASS" : "FAIL"} ${label}: ${detail}`);
+      // Shown, not judged: what PayPal returned, which may be "not found".
+      const info = (label: string, detail: string) => console.log(`  INFO ${label}: ${detail}`);
       const { disputes, orders } = paypal();
       const own = (await disputes.list(50)).map((d) => d.dispute_id);
       const listed = await call("list_disputes", { page_size: 50 });
@@ -111,9 +113,9 @@ async function main() {
       const custom = mine.disputed_transactions?.[0]?.custom;
       check("get_order", order?.id === orderId, `${orderId}: ${order?.status ?? "nothing"}${custom ? `, custom_id ${order?.purchase_units?.[0]?.custom_id === custom ? "matches" : "differs from"} the dispute's` : ""}`);
       const tracking = await call("get_shipment_tracking", { order_id: orderId });
-      check("get_shipment_tracking", tracking !== null, JSON.stringify(tracking).slice(0, 160));
+      info("get_shipment_tracking", JSON.stringify(tracking).slice(0, 160));
       const transactions = await call("list_transactions", { transaction_id: captureId, search_months: 2 });
-      check("list_transactions", transactions !== null, JSON.stringify(transactions).slice(0, 160));
+      info("list_transactions", JSON.stringify(transactions).slice(0, 160));
       return;
     }
     default:
