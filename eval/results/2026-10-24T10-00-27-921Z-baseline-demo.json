@@ -1,0 +1,94 @@
+{
+  "ranAt": "2026-10-24T10:00:27.921Z",
+  "summary": {
+    "rules-only baseline": {
+      "correct": 3,
+      "cases": 5,
+      "errors": 0,
+      "droppedStatements": 0,
+      "discrepanciesFlaggedWhereExpected": 0
+    }
+  },
+  "results": [
+    {
+      "case": "D1",
+      "assessor": "rules-only baseline",
+      "expected": "propose_return",
+      "action": "defend",
+      "correct": false,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.044
+    },
+    {
+      "case": "D2",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "contradicted",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.006
+    },
+    {
+      "case": "D3",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "defend",
+      "correct": false,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.002
+    },
+    {
+      "case": "D4",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.002
+    },
+    {
+      "case": "D5",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.002
+    }
+  ]
+}

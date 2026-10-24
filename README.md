@@ -79,7 +79,12 @@ npm run witness -- agent-buy <mandate-hash> --vault <vault-id> --item "House Ble
 ```
 
 The vault ID comes from the buyer's acceptance (the acceptance page logs it). The buyer then files the
-dispute from their sandbox PayPal account.
+dispute from their sandbox PayPal account. When the merchant's packing log shows it packed the wrong item,
+the merchant says so on the case, and Witness reads it as the seller's statement:
+
+```bash
+npm run witness -- seller-note <dispute-id> "Our packing log for this order shows Decaf, ground was packed by mistake instead of Decaf, whole bean."
+```
 
 ## The investigation desk
 
@@ -135,12 +140,18 @@ terms on Witness's acceptance page and then approves, at PayPal, a first payment
 agent. At dispute time Witness checks PayPal's record of that payment. This link is built and tested, not
 yet exercised live.
 
-`eval/` holds 18 synthetic cases whose labels were committed before any run. A simple rules-only baseline
-handles 13 and misses the 5 that need the buyer's words or the instructions read; `npx tsx eval/run.ts`
-reproduces it with no keys. Witness (Claude Opus) decided all 18 in one run
-(`eval/results/2026-10-20T19-41-35-642Z.json`). Later code changes leave the facts Claude is given unchanged
-for every case, and its recorded findings still decide all 18. These are synthetic cases built around what
-rules cannot read, and a single run, not a measure of real disputes.
+`eval/` holds 18 synthetic cases whose labels were committed before any run. The rules-only baseline beside
+Witness is the fairest one we could write without AI: it checks the mandate's instructions against the terms
+the merchant's listings use (`data/catalogue.json`), handling "not" and "never", and passes what it finds
+nothing wrong with. It decides 16 of the 18 and misses the 2 that turn on what the buyer and seller say
+arrived; `npx tsx eval/run.ts` reproduces it with no keys. (An earlier baseline that ignored the instructions
+decided 13.) Witness (Claude Opus) decided all 18 in one run (`eval/results/2026-10-20T19-41-35-642Z.json`).
+Later code changes leave the facts Claude is given unchanged for every case, and its recorded findings still
+decide all 18. These are synthetic cases and a single run, not a measure of real disputes.
+
+`eval/demo-cases.ts` holds the five cases the demo stages, under one mandate: the same complaint with the fault
+on the merchant's side or the agent's, an instruction that names no catalogue term, and two controls. The
+rules-only baseline decides 3 of the 5. Claude has not run on them yet: `npx tsx eval/run.ts --demo --witness`.
 
 ## License
 
