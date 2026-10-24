@@ -148,6 +148,10 @@ that matters, was already sent, or is resolved. On a server that isn't bound to 
 a day ($1 by default), and each turn's worst case is reserved before the call so turns running in parallel can't
 overshoot it. AG Studio runs locally without a licence key, with a watermark.
 
+AG Studio's canvas can't reflow, so on a screen narrower than 900 px the desk hides the chat, lets the pages
+scroll sideways, and shows a note linking to the demo video. The link is set at build time with
+`VITE_WITNESS_VIDEO_URL` in `desk/.env`.
+
 ## Hosting the desk
 
 `deploy/` puts the desk on one small Ubuntu 24.04 server (AWS Lightsail or EC2) behind Caddy, which gets
