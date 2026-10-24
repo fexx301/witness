@@ -1,5 +1,6 @@
 // witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file>
 //         | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered]
+//         | seller-note <dispute-id> "<the merchant's note>"
 
 import { existsSync, readFileSync } from "node:fs";
 import { agentPurchase, recordShipment } from "./agentBuy.js";
@@ -70,8 +71,16 @@ async function main() {
       }
       return;
     }
+    case "seller-note": {
+      const note = flags.join(" ").trim();
+      if (!arg || !note) throw new Error('usage: witness seller-note <dispute-id> "<the merchant\'s note, e.g. what its packing log shows>"');
+      // The merchant's own message on the case, sent through PayPal; Witness reads it back as a seller statement.
+      await paypal().disputes.sendMessage(arg, note);
+      console.log(`sent the merchant's note on ${arg}`);
+      return;
+    }
     default:
-      console.log('usage: witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file.json> | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered]');
+      console.log('usage: witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file.json> | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered] | seller-note <dispute-id> "<note>"');
   }
 }
 
