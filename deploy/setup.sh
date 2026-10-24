@@ -8,8 +8,9 @@ DOMAIN="${1:?usage: bash setup.sh <your-name>.duckdns.org}"
 REPO=https://github.com/fexx301/witness
 APP=/opt/witness
 
-# Node 22 and Caddy, from their official repositories.
+# git, Node 22 and Caddy (the last two from their official repositories).
 sudo apt-get update
+sudo apt-get install -y git
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
   sudo apt-get install -y nodejs
@@ -36,6 +37,8 @@ if [ ! -f "$APP/.env" ]; then
   exit 1
 fi
 sudo chmod 600 "$APP/.env"
+# The service may write only here (see witness.service).
+sudo -u witness mkdir -p "$APP/data/runs" "$APP/data/mandates"
 sudo -u witness bash -c "cd $APP && npm ci && cd desk && npm ci && npm run build"
 
 sudo install -m 644 "$APP/deploy/witness.service" /etc/systemd/system/witness.service

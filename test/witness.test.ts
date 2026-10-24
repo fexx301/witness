@@ -9,6 +9,7 @@ import { CASES } from "../eval/cases.js";
 import { caseStore, runCase } from "../eval/harness.js";
 import { cachedClaims, disputeRows, investigate, investigationView, rowsFor } from "../src/desk.js";
 import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
+import { envNumber, redactPayerIds, sameOriginRequest } from "../src/access.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, gapFinding, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
@@ -397,15 +398,47 @@ describe("desk model endpoint", () => {
 });
 
 describe("desk AI budget", () => {
-  it("charges each turn at its model's rates, stops at the daily limit, and resets the next day", () => {
+  it("reserves each turn's worst case before the call, settles it at the model's rates, and resets the next day", () => {
     let day = "2026-10-18";
     const budget = new DailyBudget(0.1, () => day);
-    expect(budget.charge("anthropic/claude-opus-5.5", { input_tokens: 10_000, output_tokens: 1_000 })).toBeCloseTo(0.06);
-    expect(budget.remaining()).toBeCloseTo(0.04);
-    budget.charge("some/unknown-model", { input_tokens: 10_000, output_tokens: 1_000 });
-    expect(budget.remaining()).toBe(0);
+    // 10,000 input + 1,000 output tokens on Opus 5.5 is $0.06.
+    const first = budget.reserve("anthropic/claude-opus-5.5", 10_000, 1_000)!;
+    expect(first.usd).toBeCloseTo(0.06);
+    // A second turn in flight at the same time doesn't fit, even though nothing has been spent yet.
+    expect(budget.reserve("anthropic/claude-opus-5.5", 10_000, 1_000)).toBeNull();
+    // The reply used less than the reservation, so the difference comes back.
+    expect(budget.settle(first, "anthropic/claude-opus-5.5", { input_tokens: 5_000, output_tokens: 500 })).toBeCloseTo(0.03);
+    expect(budget.remaining()).toBeCloseTo(0.07);
+    // A call that fails before replying costs nothing; an unknown model is reserved at Opus rates.
+    budget.settle(budget.reserve("some/unknown-model", 1_000, 100)!, "some/unknown-model");
+    expect(budget.remaining()).toBeCloseTo(0.07);
     day = "2026-10-19";
     expect(budget.remaining()).toBeCloseTo(0.1);
+  });
+});
+
+describe("hosted desk access", () => {
+  const allowed = ["https://witness.duckdns.org", "http://localhost:5173"];
+  it("refuses a browser POST from another site, and allows the desk's own pages and non-browser clients", () => {
+    expect(sameOriginRequest({ "sec-fetch-site": "same-origin" }, allowed)).toBe(true);
+    expect(sameOriginRequest({ "sec-fetch-site": "cross-site", origin: "https://witness.duckdns.org" }, allowed)).toBe(false);
+    expect(sameOriginRequest({ "sec-fetch-site": "same-site" }, allowed)).toBe(false);
+    expect(sameOriginRequest({ origin: "https://evil.example" }, allowed)).toBe(false);
+    expect(sameOriginRequest({ origin: "http://localhost:5173" }, allowed)).toBe(true);
+    expect(sameOriginRequest({}, allowed)).toBe(true);
+  });
+
+  it("replaces PayPal account IDs for visitors, leaving dispute, order and capture IDs readable", () => {
+    const view = { buyerPayerId: "P69H9YR3CJHFL", detail: "approved by PayPal account P69H9YR3CJHFL", dispute: "PP-R-YUX-10193379", order: "226667663V091234R", ranAt: "2026-10-18T11:30:46.000Z" };
+    expect(redactPayerIds(view)).toEqual({ ...view, buyerPayerId: "[PayPal account]", detail: "approved by PayPal account [PayPal account]" });
+  });
+
+  it("stops on a numeric setting that isn't a number, instead of turning a limit into no limit", () => {
+    expect(envNumber({}, "WITNESS_DESK_AI_DAILY_USD", 1)).toBe(1);
+    expect(envNumber({ WITNESS_DESK_AI_DAILY_USD: "0.5" }, "WITNESS_DESK_AI_DAILY_USD", 1)).toBe(0.5);
+    expect(() => envNumber({ WITNESS_DESK_AI_DAILY_USD: "1$" }, "WITNESS_DESK_AI_DAILY_USD", 1)).toThrow(/must be a number/);
+    expect(() => envNumber({ WITNESS_VISITOR_INVESTIGATIONS_PER_DAY: "2.5" }, "WITNESS_VISITOR_INVESTIGATIONS_PER_DAY", 10, { integer: true })).toThrow(/whole number/);
+    expect(() => envNumber({ WITNESS_PORT: "-1" }, "WITNESS_PORT", 8790, { min: 1, integer: true })).toThrow(/at least 1/);
   });
 });
 

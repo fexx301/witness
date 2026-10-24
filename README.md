@@ -139,7 +139,8 @@ The desk's AI only investigates. **Execute decision** is a button for a person: 
 investigation that person reviewed, with no new assessment, and is refused if the dispute changed in a way
 that matters, was already sent, or is resolved. On a server that isn't bound to localhost it is off unless
 `WITNESS_ALLOW_EXECUTE=1`. Desk chat is capped at 8,000 output tokens a turn and `WITNESS_DESK_AI_DAILY_USD`
-a day ($1 by default). AG Studio runs locally without a licence key, with a watermark.
+a day ($1 by default), and each turn's worst case is reserved before the call so turns running in parallel can't
+overshoot it. AG Studio runs locally without a licence key, with a watermark.
 
 ## Hosting the desk
 
@@ -156,6 +157,8 @@ On a hosted desk, visitors can read the queue and investigations, chat (capped b
 and run `WITNESS_VISITOR_INVESTIGATIONS_PER_DAY` investigations a day (10 by default). Execute and mandate
 acceptance work only from the server itself: requests through Caddy are visitors, even though Witness listens
 on loopback. `WITNESS_ALLOW_EXECUTE=1` would open both to everyone, so don't set it on a public server.
+Visitors see PayPal account IDs replaced, and browser POSTs from other sites are refused. A mistyped numeric
+setting stops the server at startup rather than becoming no limit. The service may write only under `data/`.
 
 ## Status
 
@@ -187,4 +190,7 @@ real disputes.
 
 ## License
 
-MIT
+MIT, for this repository's code. The desk depends on AG Studio (`ag-studio` and `ag-studio-react`), which AG Grid
+Ltd licenses commercially under its own terms (`desk/node_modules/ag-studio/LICENSE.html` once installed), not
+under MIT. The repository doesn't contain it; `npm ci` installs it. It runs without a key, with a watermark, and
+the hosted desk uses the hackathon's AG Studio trial licence.

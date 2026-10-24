@@ -1,8 +1,19 @@
-# Caddy serves the built desk and passes only the desk's API to Witness, which listens on loopback.
-# Caddy gets the HTTPS certificate for the name itself. setup.sh replaces WITNESS_DOMAIN.
+# Caddy serves the built desk and passes the desk's API and the acceptance pages to Witness, which listens
+# on loopback and refuses visitors what is for the server itself (execute, accepting mandates). Caddy gets
+# the HTTPS certificate for the name itself and adds X-Forwarded-For. setup.sh replaces WITNESS_DOMAIN.
 WITNESS_DOMAIN {
 	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
 	handle /api/* {
+		reverse_proxy 127.0.0.1:8790
+	}
+	handle /accept/* {
 		reverse_proxy 127.0.0.1:8790
 	}
 	handle {

@@ -82,13 +82,25 @@ const RATES: Record<string, [number, number]> = {
   "claude-haiku-5-5": [0.1, 0.5],
 };
 
-// What the desk's chat may spend in one UTC day, counted from each reply's token usage. AG Studio's
-// agents run several turns in parallel, so without a cap one request can cost dollars.
-// shortcut: turns already in flight when the limit is reached still complete, so it can overshoot by their
-// cost; reserve each turn's maximum up front if that ever matters.
+type Usage = { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null };
+const costOf = (model: string, inputTokens: number, outputTokens: number) => {
+  const [input, output] = RATES[model] ?? RATES["claude-opus-5-5"]!;
+  return (inputTokens * input + outputTokens * output) / 1_000_000;
+};
+const usageCost = (model: string, usage: Usage) =>
+  costOf(model, usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0), usage.output_tokens);
+
+// What the desk's chat may spend in one UTC day. AG Studio's agents run several turns in parallel, so each
+// turn reserves its worst case before the call (its whole request as input, plus the output cap) and is
+// refused if that doesn't fit; the reply's usage then replaces the reservation.
+export interface Reservation {
+  day: string;
+  usd: number;
+}
 export class DailyBudget {
   private day = "";
   private spent = 0;
+
   constructor(private readonly limitUsd: number, private readonly today = () => new Date().toISOString().slice(0, 10)) {}
 
   private roll() {
@@ -100,12 +112,19 @@ export class DailyBudget {
     return Math.max(0, this.limitUsd - this.spent);
   }
 
-  charge(model: string, usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null }): number {
+  reserve(model: string, maxInputTokens: number, maxOutputTokens: number): Reservation | null {
     this.roll();
-    const [input, output] = RATES[model] ?? RATES["claude-opus-5-5"]!;
-    const inputTokens = usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
-    const cost = (inputTokens * input + usage.output_tokens * output) / 1_000_000;
-    this.spent += cost;
+    const usd = costOf(model, maxInputTokens, maxOutputTokens);
+    if (this.spent + usd > this.limitUsd) return null;
+    this.spent += usd;
+    return { day: this.day, usd };
+  }
+
+  // Replaces a reservation with what the call cost: its usage, or nothing if it failed before a reply.
+  settle(reservation: Reservation, model: string, usage?: Usage): number {
+    this.roll();
+    const cost = usage ? usageCost(model, usage) : 0;
+    this.spent += cost - (reservation.day === this.day ? reservation.usd : 0);
     return cost;
   }
 }

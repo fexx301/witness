@@ -2,9 +2,10 @@
 // calls /api. Investigations are dry runs. Acting on a dispute is a separate, human request that
 // sends exactly a reviewed investigation, and it is never offered to the desk's AI as a tool.
 
+import type Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
 import { acceptPage, acceptedPage, completeAcceptance, errorPage, firstOrderProblem, startAcceptance } from "./accept.js";
-import { DailyCount, isLocalRequest } from "./access.js";
+import { DailyCount, envNumber, isLocalRequest, redactPayerIds, sameOriginRequest } from "./access.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { ClaudeAssessor, claudeClient } from "./decide.js";
 import { cachedClaims, investigate, investigationView, readClaims, rowsFor } from "./desk.js";
@@ -24,12 +25,12 @@ const RAN_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 // and a daily spending budget. OpenRouter reserves credit for every parallel turn's maximum output.
 const LLM_MAX_TOKENS = 8_000;
 const LLM_MAX_REQUEST_BYTES = 2_000_000;
-const llmBudget = new DailyBudget(Number(process.env.WITNESS_DESK_AI_DAILY_USD ?? 1));
+const llmBudget = new DailyBudget(envNumber(process.env, "WITNESS_DESK_AI_DAILY_USD", 1));
 // Each investigation is one Claude call (about $0.05 on Opus), so visitors get a daily number of them.
-const visitorInvestigations = new DailyCount(Number(process.env.WITNESS_VISITOR_INVESTIGATIONS_PER_DAY ?? 10));
+const visitorInvestigations = new DailyCount(envNumber(process.env, "WITNESS_VISITOR_INVESTIGATIONS_PER_DAY", 10, { integer: true }));
 
 const host = process.env.WITNESS_HOST ?? "127.0.0.1";
-const port = Number(process.env.WITNESS_PORT ?? 8790);
+const port = envNumber(process.env, "WITNESS_PORT", 8790, { min: 1, integer: true });
 // Anyone who can reach a hosted desk could press Execute, or start PayPal orders from the acceptance
 // page, so both are for this machine only unless a flag says otherwise. Judged per request: behind a
 // reverse proxy the server is bound to loopback but its visitors are not local.
@@ -37,6 +38,10 @@ const executeAllowed = (req: IncomingMessage) => process.env.WITNESS_ALLOW_EXECU
 
 // Where PayPal sends the buyer back after approving; fixed, never taken from the request's Host header.
 const origin = process.env.WITNESS_PUBLIC_URL ?? `http://${host}:${port}`;
+// The sites a browser may POST from: the hosted desk, this server, and the desk's dev server.
+const allowedOrigins = [new URL(origin).origin, `http://${host}:${port}`, `http://localhost:${port}`, "http://localhost:5173", "http://127.0.0.1:5173"];
+// Visitors to a hosted desk see records with PayPal account IDs replaced.
+const forViewer = <T>(req: IncomingMessage, body: T): T => (isLocalRequest(req.headers, req.socket.remoteAddress) ? body : redactPayerIds(body));
 
 const client = new PayPalClient(credentialsFromEnv());
 const deps = (): Deps => ({
@@ -73,6 +78,12 @@ const HASH_PATH = /^\/accept\/([0-9a-f]{64})$/;
 
 async function handle(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? "/", "http://desk");
+  if (req.method === "POST") {
+    if (!sameOriginRequest(req.headers, allowedOrigins)) return json(res, 403, { error: "Requests from other sites are refused." });
+    // JSON can't be sent cross-site without the browser asking first, which this server never allows.
+    if (url.pathname.startsWith("/api/") && !(req.headers["content-type"] ?? "").startsWith("application/json"))
+      return json(res, 415, { error: "Send JSON." });
+  }
 
   if (req.method === "GET" && url.pathname === "/api/disputes") return json(res, 200, { rows: rowsFor(await queue.get(), deps().runsDir) });
 
@@ -81,7 +92,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     const ranAt = url.searchParams.get("ranAt") ?? undefined;
     if (!DISPUTE_ID.test(disputeId) || (ranAt && !RAN_AT.test(ranAt))) return json(res, 400, { error: "Unknown dispute or investigation." });
     const view = investigationView("data/runs", disputeId, ranAt, new MandateStore("data/mandates"));
-    return view ? json(res, 200, view) : json(res, 404, { error: "No investigation yet for this dispute." });
+    return view ? json(res, 200, forViewer(req, view)) : json(res, 404, { error: "No investigation yet for this dispute." });
   }
 
   if (req.method === "POST" && url.pathname === "/api/investigate") {
@@ -94,7 +105,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     const { witness, baseline } = await investigate(deps(), disputeId);
     // The desk reloads the queue next, so it should show PayPal as it is now.
     await queue.refresh().catch(() => {});
-    return json(res, 200, {
+    return json(res, 200, forViewer(req, {
       disputeId: witness.disputeId,
       ranAt: witness.ranAt,
       status: witness.claim.status,
@@ -107,7 +118,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       evidenceNotes: witness.writing.evidenceNotes,
       notSent: witness.writing.dropped,
       planned: witness.steps.map((s) => s.kind),
-    });
+    }));
   }
 
   if (req.method === "POST" && url.pathname === "/api/execute") {
@@ -164,13 +175,22 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (raw === null) return json(res, 413, { error: "Request too large." });
     const turn = JSON.parse(raw) as StudioTurn;
     if (!Array.isArray(turn.input)) return json(res, 400, { error: "A Studio turn needs an input list." });
-    if (llmBudget.remaining() <= 0) return json(res, 429, { error: "The desk's AI budget for today is used up. Witness investigations still work." });
     const { client: claude, deskModel: model } = claudeClient();
+    // Reserved before the call, at a generous upper bound: one input token per byte of the request, plus the
+    // output cap. No retries, so one turn is one call.
+    const reservation = llmBudget.reserve(model, Buffer.byteLength(raw), LLM_MAX_TOKENS);
+    if (!reservation) return json(res, 429, { error: "The desk's AI budget for today is used up. Witness investigations still work." });
     // Closing the chat in the desk aborts the browser request, which cancels this call too.
     const abort = new AbortController();
     res.on("close", () => abort.abort());
-    const reply = await claude.messages.create({ model, max_tokens: LLM_MAX_TOKENS, ...toClaudeRequest(turn) }, { signal: abort.signal });
-    const cost = llmBudget.charge(model, reply.usage);
+    let reply: Anthropic.Message;
+    try {
+      reply = await claude.messages.create({ model, max_tokens: LLM_MAX_TOKENS, ...toClaudeRequest(turn) }, { signal: abort.signal, maxRetries: 0 });
+    } catch (error) {
+      llmBudget.settle(reservation, model);
+      throw error;
+    }
+    const cost = llmBudget.settle(reservation, model, reply.usage);
     console.log(`desk AI turn: $${cost.toFixed(4)}, $${llmBudget.remaining().toFixed(2)} left today`);
     return json(res, 200, {
       id: reply.id,
