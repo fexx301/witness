@@ -2,14 +2,17 @@
 
 # Witness
 
-**When an AI purchase goes wrong, Witness connects what the buyer approved, what the agent bought, and
-what the merchant delivered, then prepares the evidence or executes an authorized refund through PayPal.**
+**Witness investigates PayPal disputes, including the new kind: purchases an AI agent made for the buyer.
+It checks what the buyer authorized, what was bought and what arrived, works out whose mistake it was, and
+prepares the response for PayPal (evidence, a return offer or a refund) for a person to approve and send.**
 
-Shopping agents can now pay on a buyer's behalf. When one of those purchases is disputed, the merchant
-has to work out three separate things: did the buyer authorize this agent to buy, did the agent buy what
-it was told to, and did the merchant deliver what was ordered? A purchase can be within budget and still
-violate the buyer's instructions. An authorized purchase can still never arrive. Witness keeps these
-questions apart.
+A dispute says something went wrong, not who caused it. The same complaint, "this bag is ground", can mean
+the merchant packed the wrong bag or the buyer's shopping agent ordered the wrong one, and the fair answer
+differs: offer a return, or refund under the merchant's policy. When an agent made the purchase, the
+merchant has three separate questions: did the buyer authorize this agent to buy, did the agent buy what it
+was told to, and did the merchant deliver what was ordered? A purchase can be within budget and still break
+the buyer's instructions. An authorized purchase can still never arrive. Witness keeps these questions
+apart. For a buyer's own purchase, only the delivery and listing questions apply.
 
 Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run against live PayPal.
 
