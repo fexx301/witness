@@ -1,6 +1,6 @@
 // witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file>
 //         | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered]
-//         | seller-note <dispute-id> "<the merchant's note>" | toolkit-probe [dispute-id]
+//         | seller-note <dispute-id> "<the merchant's note>" | toolkit-probe [dispute-id] | sandbox-ruling <dispute-id> seller|buyer
 
 import { existsSync, readFileSync } from "node:fs";
 import { agentPurchase, recordShipment } from "./agentBuy.js";
@@ -80,6 +80,14 @@ async function main() {
       console.log(`sent the merchant's note on ${arg}`);
       return;
     }
+    case "sandbox-ruling": {
+      const side = flags[0];
+      if (!arg || (side !== "seller" && side !== "buyer")) throw new Error("usage: witness sandbox-ruling <dispute-id> seller|buyer");
+      // PayPal offers it only some 20-25 minutes after a case enters review; until then it answers 4xx.
+      const { debugId } = await paypal().disputes.adjudicate(arg, side === "seller" ? "SELLER_FAVOR" : "BUYER_FAVOR");
+      console.log(`Sandbox ruling for the ${side} sent on ${arg} (debug_id ${debugId}). PayPal resolves it shortly; check with: npm run witness -- inspect ${arg}`);
+      return;
+    }
     case "toolkit-probe": {
       // Free, no model: do PayPal's Agent Toolkit read tools see the same sandbox records as Witness's own client?
       const toolkit = recordsToolkit(credentialsFromEnv());
@@ -119,7 +127,7 @@ async function main() {
       return;
     }
     default:
-      console.log('usage: witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file.json> | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered] | seller-note <dispute-id> "<note>" | toolkit-probe [dispute-id]');
+      console.log('usage: witness list | inspect <dispute-id> | run <dispute-id> [--execute] | import-mandate <file.json> | agent-buy <mandate-hash> --vault <id> --item "<item>" --amount 16.00 [--ship shipped|delivered] | seller-note <dispute-id> "<note>" | toolkit-probe [dispute-id] | sandbox-ruling <dispute-id> seller|buyer');
   }
 }
 

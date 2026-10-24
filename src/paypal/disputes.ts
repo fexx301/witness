@@ -104,6 +104,12 @@ export class Disputes {
     });
   }
 
+  // Sandbox only: settles the case for the buyer or the seller. The outcome is the developer's choice, so it
+  // shows the dispute lifecycle working, not that the evidence would win.
+  adjudicate(id: string, outcome: "BUYER_FAVOR" | "SELLER_FAVOR") {
+    return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/adjudicate`, { json: { adjudication_outcome: outcome } });
+  }
+
   escalate(id: string, note: string) {
     return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/escalate`, { json: { note } });
   }

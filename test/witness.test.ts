@@ -782,6 +782,8 @@ describe("pipeline", () => {
     ]);
     expect(bodies[0]).toEqual({ note: "n", accept_claim_type: "REFUND_WITH_RETURN", return_shipping_address: RETURN_TO });
     expect(bodies[1]).toEqual({ note: "n", accept_claim_type: "REFUND" });
+    await disputes.adjudicate("X", "SELLER_FAVOR");
+    expect(bodies[2]).toEqual({ adjudication_outcome: "SELLER_FAVOR" });
   });
 });
 
