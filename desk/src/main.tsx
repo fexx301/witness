@@ -5,6 +5,7 @@ import { AgStudio } from "ag-studio-react";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { ai } from "./agents";
+import { addCopyButtons } from "./copyReplies";
 import { onRefresh, witnessSource } from "./data";
 import { connectStudio, pageChanged, showPage, usePage, type PageId } from "./deskState";
 import { initialState } from "./initialState";
@@ -93,6 +94,7 @@ function NarrowNote() {
 
 function Desk() {
   useEffect(() => onRefresh(() => studioApi?.reload()), []);
+  useEffect(() => addCopyButtons(document.body), []);
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <Tabs />
