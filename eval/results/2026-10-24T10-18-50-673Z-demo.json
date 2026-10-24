@@ -1,0 +1,181 @@
+{
+  "ranAt": "2026-10-24T10:18:50.673Z",
+  "summary": {
+    "rules-only baseline": {
+      "correct": 3,
+      "cases": 5,
+      "errors": 0,
+      "droppedStatements": 0,
+      "discrepanciesFlaggedWhereExpected": 0
+    },
+    "anthropic/claude-opus-5.5": {
+      "correct": 5,
+      "cases": 5,
+      "errors": 0,
+      "droppedStatements": 0,
+      "discrepanciesFlaggedWhereExpected": 0
+    }
+  },
+  "results": [
+    {
+      "case": "D1",
+      "assessor": "rules-only baseline",
+      "expected": "propose_return",
+      "action": "defend",
+      "correct": false,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.018
+    },
+    {
+      "case": "D1",
+      "assessor": "anthropic/claude-opus-5.5",
+      "expected": "propose_return",
+      "action": "propose_return",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "contradicted",
+        "fulfilment": "established"
+      },
+      "seconds": 18.092
+    },
+    {
+      "case": "D2",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "contradicted",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "D2",
+      "assessor": "anthropic/claude-opus-5.5",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "contradicted",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 19.011
+    },
+    {
+      "case": "D3",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "defend",
+      "correct": false,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "D3",
+      "assessor": "anthropic/claude-opus-5.5",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "contradicted",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 26.37
+    },
+    {
+      "case": "D4",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "D4",
+      "assessor": "anthropic/claude-opus-5.5",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": "PayPal's reason is MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED, but Claude reads the buyer's words as other. Witness answers PayPal's stated reason.",
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 18.112
+    },
+    {
+      "case": "D5",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.002
+    },
+    {
+      "case": "D5",
+      "assessor": "anthropic/claude-opus-5.5",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 20.731
+    }
+  ]
+}
