@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ASK_WHAT_ARRIVED, executeSteps, planSteps } from "../src/act.js";
-import { RulesAssessor } from "../src/baseline.js";
+import { checkInstructions, loadCatalogue, RulesAssessor } from "../src/baseline.js";
+import { CASES } from "../eval/cases.js";
+import { caseStore, runCase } from "../eval/harness.js";
 import { cachedClaims, disputeRows, investigate, investigationView, rowsFor } from "../src/desk.js";
 import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
@@ -333,6 +335,35 @@ describe("rules-only baseline", () => {
     const f = [established[0]!, comparisonFinding("instruction_compliance", a.instruction_compliance, facts), comparisonFinding("listing_match", a.listing_match, facts), established[1]!];
     expect(decide(a.claim_type, f, [], DEMO_POLICY).action).toBe("defend");
     expect(checkStatements(a.evidence_notes, facts).dropped).toHaveLength(0);
+  });
+
+  const coffee = loadCatalogue("data/catalogue.json");
+  it("reads stated instructions against the catalogue, with not and never anywhere earlier in the clause", () => {
+    for (const instruction of [
+      "Whole bean, never ground.",
+      "Reorder my usual House Blend. I grind my own beans, so don't get it pre-ground.",
+      "Same House Blend as always, beans not ground please.",
+      "Get the House Blend again. I only have a burr grinder, so whole beans.",
+    ]) {
+      expect(checkInstructions(coffee, [instruction], "House Blend, ground, 340 g").status).toBe("mismatch");
+      expect(checkInstructions(coffee, [instruction], "House Blend, whole bean, 340 g").status).toBe("match");
+    }
+    expect(checkInstructions(coffee, ["Only my usual coffee: House Blend."], "Dark Roast, whole bean, 340 g").explanation).toContain("dark roast");
+    expect(checkInstructions(coffee, ["House Blend or Decaf, whole bean."], "Decaf, whole bean, 340 g").status).toBe("match");
+  });
+
+  it("passes an instruction that names no catalogue term, and says it went unchecked", () => {
+    const r = checkInstructions(coffee, ["Whole bean, never ground.", "It's for my partner in the evening, and caffeine keeps her up."], "House Blend, whole bean, 340 g");
+    expect(r.status).toBe("match");
+    expect(r.explanation).toContain('Not checked, no catalogue term: "It\'s for my partner');
+  });
+
+  it("decides 16 of the 18 predeclared eval cases, missing only the two that turn on what the buyer and seller say arrived", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "witness-baseline-"));
+    const store = caseStore(join(dir, "mandates"), CASES);
+    const wrong: string[] = [];
+    for (const c of CASES) if (!(await runCase(c, new RulesAssessor(coffee), store, join(dir, "runs"))).correct) wrong.push(c.id);
+    expect(wrong).toEqual(["A4", "A8"]);
   });
 });
 

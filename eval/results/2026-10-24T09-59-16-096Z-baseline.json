@@ -1,0 +1,302 @@
+{
+  "ranAt": "2026-10-24T09:59:16.096Z",
+  "summary": {
+    "rules-only baseline": {
+      "correct": 16,
+      "cases": 18,
+      "errors": 0,
+      "droppedStatements": 0,
+      "discrepanciesFlaggedWhereExpected": 0
+    }
+  },
+  "results": [
+    {
+      "case": "A1",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "contradicted",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.034
+    },
+    {
+      "case": "A2",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "contradicted",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.004
+    },
+    {
+      "case": "A3",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.005
+    },
+    {
+      "case": "A4",
+      "assessor": "rules-only baseline",
+      "expected": "propose_return",
+      "action": "defend",
+      "correct": false,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.003
+    },
+    {
+      "case": "A5",
+      "assessor": "rules-only baseline",
+      "expected": "request_evidence",
+      "action": "request_evidence",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "contradicted",
+        "listing_match": "unknown",
+        "fulfilment": "unknown"
+      },
+      "seconds": 0.002
+    },
+    {
+      "case": "A6",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "unknown",
+        "instruction_compliance": "not_applicable",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0
+    },
+    {
+      "case": "A7",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "A8",
+      "assessor": "rules-only baseline",
+      "expected": "request_evidence",
+      "action": "defend",
+      "correct": false,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "B1",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "B2",
+      "assessor": "rules-only baseline",
+      "expected": "request_evidence",
+      "action": "request_evidence",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "unknown",
+        "fulfilment": "unknown"
+      },
+      "seconds": 0.002
+    },
+    {
+      "case": "B3",
+      "assessor": "rules-only baseline",
+      "expected": "request_evidence",
+      "action": "request_evidence",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "unknown",
+        "instruction_compliance": "not_applicable",
+        "listing_match": "unknown",
+        "fulfilment": "unknown"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "B4",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "unknown",
+        "fulfilment": "contradicted"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "B5",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "C1",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "contradicted",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "C2",
+      "assessor": "rules-only baseline",
+      "expected": "defend",
+      "action": "defend",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "C3",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "established",
+        "instruction_compliance": "contradicted",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "C4",
+      "assessor": "rules-only baseline",
+      "expected": "refund",
+      "action": "refund",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "contradicted",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    },
+    {
+      "case": "C5",
+      "assessor": "rules-only baseline",
+      "expected": "request_evidence",
+      "action": "request_evidence",
+      "correct": true,
+      "discrepancy": null,
+      "dropped": 0,
+      "findings": {
+        "authorization": "unknown",
+        "instruction_compliance": "established",
+        "listing_match": "established",
+        "fulfilment": "established"
+      },
+      "seconds": 0.001
+    }
+  ]
+}

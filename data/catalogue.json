@@ -1,0 +1,6 @@
+{
+  "attributes": {
+    "blend": ["house blend", "dark roast", "espresso roast", "decaf"],
+    "grind": ["whole bean", "coarse ground", "fine ground", "ground"]
+  }
+}

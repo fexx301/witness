@@ -679,7 +679,7 @@ function Case() {
               {view.reviewed.decision.basis === "merchant_policy" && <Muted>Policy: {view.reviewed.policy}</Muted>}
               {rules && rules !== action && (
                 <p style={{ margin: "6px 0 0" }}>
-                  A rules-only tool would have chosen <strong>{ACTION_LABEL[rules] ?? rules}</strong>: it can't read the buyer's words or compare their instructions with what was bought.
+                  A rules-only tool would have chosen <strong>{ACTION_LABEL[rules] ?? rules}</strong>: it checks the instructions only for the shop's catalogue terms and can't read the buyer's or seller's words.
                 </p>
               )}
             </>
