@@ -490,14 +490,14 @@ describe("planning", () => {
   it("uses only the response PayPal offers right now", () => {
     const evidence = claim({ actions: new Set(["provide_evidence", "accept_claim"]), acceptClaimTypes: ["REFUND", "REFUND_WITH_RETURN"] });
     expect(planSteps(evidence, decision("defend"), writing, files)).toEqual([{ kind: "provide_evidence", evidenceType: "OTHER", notes: "notes", files }]);
-    // A carrier outside PayPal's list is named in carrier_name_other.
+    // Not received: only the delivered trackers, written into the notes by code, and no text file.
     const notReceivedClaim = claim({ reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED", actions: new Set(["provide_evidence"]) });
     const shipped = [
       { trackingNumber: "1Z1", status: "DELIVERED", carrier: "Evri" },
       { trackingNumber: "1Z2", status: "SHIPPED", carrier: "USPS" },
     ];
     expect(planSteps(notReceivedClaim, decision("defend"), writing, files, shipped)).toEqual([
-      { kind: "provide_evidence", evidenceType: "PROOF_OF_FULFILLMENT", notes: "notes", files: [], trackingInfo: [{ carrier_name: "OTHER", carrier_name_other: "Evri", tracking_number: "1Z1" }] },
+      { kind: "provide_evidence", evidenceType: "OTHER", notes: "Delivered tracking: Evri 1Z1.\nnotes", files: [] },
     ]);
     expect(planSteps(evidence, decision("refund"), writing, files).map((s) => s.kind)).toEqual(["accept_claim"]);
     expect(planSteps(evidence, decision("propose_return"), writing, files, [], RETURN_TO)[0]).toMatchObject({ kind: "accept_claim", acceptClaimType: "REFUND_WITH_RETURN", returnAddress: RETURN_TO });
@@ -647,17 +647,9 @@ describe("pipeline", () => {
     const live = await executeReviewed(deps(client, runsDir), dry);
     expect(live.results).toEqual([{ step: "provide_evidence", ok: true, debugId: "dbg1" }]);
     expect(writes).toEqual([{ path: "/v1/customer/disputes/PP-R-SSN-10190213/provide-evidence", contentType: "multipart" }]);
-    // Not received takes proof of fulfilment: the delivered tracker, with no text file attached.
+    // Not received: OTHER with the delivered tracker in the notes, and no text file attached.
     expect(inputs).toEqual([
-      {
-        evidences: [
-          {
-            evidence_type: "PROOF_OF_FULFILLMENT",
-            notes: expect.any(String),
-            evidence_info: { tracking_info: [{ carrier_name: "USPS", tracking_number: "9400111899223197428490" }] },
-          },
-        ],
-      },
+      { evidences: [{ evidence_type: "OTHER", notes: expect.stringMatching(/^Delivered tracking: USPS 9400111899223197428490\./) }] },
     ]);
     expect(readdirSync(runsDir)).toHaveLength(2);
   });
@@ -676,7 +668,10 @@ describe("pipeline", () => {
         }),
     };
     const record = await processDispute({ ...deps(client, mkdtempSync(join(tmpdir(), "witness-runs-"))), assessor: writer }, "PP-R-SSN-10190213");
-    expect(record.steps[0]).toMatchObject({ kind: "provide_evidence", notes: "Tracking shows the parcel delivered. (sources: shipment_tracking[0])" });
+    expect(record.steps[0]).toMatchObject({
+      kind: "provide_evidence",
+      notes: "Delivered tracking: USPS 9400111899223197428490.\nTracking shows the parcel delivered. (sources: shipment_tracking[0])",
+    });
     expect(record.writing.dropped.map((s) => s.text)).toEqual(["The buyer signed for it."]);
     expect(record.evidencePack).toContain("NOT SENT");
   });
@@ -727,7 +722,7 @@ describe("pipeline", () => {
 
     const open = routes[disputePath] as RawDispute;
     routes[disputePath] = { ...open, links: [{ rel: "provide_supporting_info", href: "", method: "POST" }] };
-    await expect(executeReviewed(deps(client, runsDir), reviewed)).rejects.toThrow(/PayPal now allows "provide_supporting_info", not the reviewed "provide_evidence PROOF_OF_FULFILLMENT"/);
+    await expect(executeReviewed(deps(client, runsDir), reviewed)).rejects.toThrow(/PayPal now allows "provide_supporting_info", not the reviewed "provide_evidence OTHER"/);
     expect(writes).toHaveLength(0);
     expect(readdirSync(runsDir).filter((name) => name.endsWith("-executed.json"))).toHaveLength(0);
 

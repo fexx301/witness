@@ -3,12 +3,12 @@
 
 import type { Claim } from "./claim.js";
 import { gapFinding, type Decision, type Writing } from "./decide.js";
-import type { Disputes, EvidenceFile, TrackingInfo } from "./paypal/disputes.js";
+import type { Disputes, EvidenceFile } from "./paypal/disputes.js";
 import type { Tracking } from "./paypal/orders.js";
 import type { ReturnAddress } from "./policy.js";
 
 export type Step =
-  | { kind: "provide_evidence"; evidenceType: string; notes: string; files: EvidenceFile[]; trackingInfo?: TrackingInfo[] }
+  | { kind: "provide_evidence"; evidenceType: string; notes: string; files: EvidenceFile[] }
   | { kind: "provide_supporting_info"; notes: string; files: EvidenceFile[] }
   | { kind: "send_message"; message: string }
   | { kind: "escalate"; note: string }
@@ -23,20 +23,16 @@ const clip = (text: string) => text.slice(0, 2000);
 export const ASK_WHAT_ARRIVED =
   "Thank you for contacting us about this order. So we can check what arrived, please reply with a photo of the item you received that shows its label, including any size, flavour or other variant details.";
 
-// Carriers PayPal names in its carrier_name enum, of those a demo merchant is likely to use.
-const PAYPAL_CARRIERS = new Set(["UPS", "USPS", "FEDEX", "DHL", "ROYAL_MAIL", "PARCELFORCE", "TNT", "CA_CANADA_POST"]);
-const trackingInfoFor = (t: Tracking): TrackingInfo => {
-  const carrier = (t.carrier ?? "").toUpperCase();
-  return PAYPAL_CARRIERS.has(carrier)
-    ? { carrier_name: carrier, tracking_number: t.trackingNumber }
-    : { carrier_name: "OTHER", carrier_name_other: t.carrier || "not recorded", tracking_number: t.trackingNumber };
-};
-
-// PayPal's evidence types depend on the reason: a not-received claim takes proof of fulfilment, which the
-// delivered trackers supply on their own; the other reasons take notes and documents as OTHER.
+// shortcut: PayPal's evidence table gives not-received claims PROOF_OF_FULFILLMENT, but the sandbox refused it at the
+// chargeback stage in every form on 2026-10-29 (EVIDENCE_TYPE_IS_NOT_ALLOWED, debug_id f11254614730b) and accepted
+// OTHER with notes; revisit before running against live PayPal. Code writes the delivered trackers into those notes
+// (PayPal also holds them from the Tracking API), and no text file goes with them.
 function evidenceStep(claim: Claim, notes: string, files: EvidenceFile[], tracking: Tracking[]): Step {
-  if (claim.reason === "MERCHANDISE_OR_SERVICE_NOT_RECEIVED")
-    return { kind: "provide_evidence", evidenceType: "PROOF_OF_FULFILLMENT", notes, files: [], trackingInfo: tracking.filter((t) => t.status === "DELIVERED").map(trackingInfoFor) };
+  if (claim.reason === "MERCHANDISE_OR_SERVICE_NOT_RECEIVED") {
+    const delivered = tracking.filter((t) => t.status === "DELIVERED").map((t) => `${t.carrier || "carrier not recorded"} ${t.trackingNumber}`);
+    const withTracking = delivered.length ? `Delivered tracking: ${delivered.join("; ")}.\n${notes}` : notes;
+    return { kind: "provide_evidence", evidenceType: "OTHER", notes: clip(withTracking), files: [] };
+  }
   return { kind: "provide_evidence", evidenceType: "OTHER", notes, files };
 }
 

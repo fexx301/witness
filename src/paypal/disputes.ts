@@ -69,12 +69,8 @@ export class Disputes {
     return files.map((file, index) => ({ name: `file${index + 1}`, ...file }));
   }
 
-  provideEvidence(id: string, evidence: { evidenceType: string; notes: string; trackingInfo?: TrackingInfo[] }, files: EvidenceFile[]) {
-    const item = {
-      evidence_type: evidence.evidenceType,
-      notes: evidence.notes,
-      ...(evidence.trackingInfo?.length ? { evidence_info: { tracking_info: evidence.trackingInfo } } : {}),
-    };
+  provideEvidence(id: string, evidence: { evidenceType: string; notes: string }, files: EvidenceFile[]) {
+    const item = { evidence_type: evidence.evidenceType, notes: evidence.notes };
     return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/provide-evidence`, {
       multipart: { input: { evidences: [item] }, files: this.files(files) },
     });
@@ -113,13 +109,6 @@ export class Disputes {
   escalate(id: string, note: string) {
     return this.client.request("POST", `/v1/customer/disputes/${encodeURIComponent(id)}/escalate`, { json: { note } });
   }
-}
-
-// PayPal's carrier_name is an enum; any other carrier goes in carrier_name_other.
-export interface TrackingInfo {
-  carrier_name: string;
-  carrier_name_other?: string;
-  tracking_number: string;
 }
 
 export function availableActions(dispute: RawDispute): Set<string> {
