@@ -179,8 +179,9 @@ queue and each investigation.
 
 PayPal's approval page shows the buyer only the payment, not the mandate's terms, so the buyer accepts the
 terms on Witness's acceptance page and then approves, at PayPal, a first payment that saves PayPal for the
-agent. At dispute time Witness checks PayPal's record of that payment. This link is built and tested, not
-yet exercised live.
+agent. At dispute time Witness checks PayPal's record of that payment. It ran live in the sandbox on
+2026-10-24: the buyer accepted the staging mandate, approved PayPal order `5YS322825N0823412`, and the agent's
+later purchases and disputes carry that mandate.
 
 `eval/` holds 18 synthetic cases whose labels were committed before any run. The rules-only baseline beside
 Witness is the fairest one we could write without AI: it checks the mandate's instructions against the terms
