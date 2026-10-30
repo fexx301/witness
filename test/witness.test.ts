@@ -12,6 +12,7 @@ import { DailyBudget, toClaudeRequest } from "../src/studioLlm.js";
 import { envNumber, redactIdentities, sameOriginRequest } from "../src/access.js";
 import { askRecords, BudgetExhausted, lookup, READ_TOOLS, recordsToolkit, type RecordsToolkit } from "../src/paypalRecords.js";
 import { normalizeDispute, type Claim } from "../src/claim.js";
+import { textPdf } from "../src/pack.js";
 import { checkStatements, ClaudeAssessor, claimTypeForReason, comparisonFinding, decide, gapFinding, type Assessment, type Assessor, type Decision, type Writing } from "../src/decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type Finding } from "../src/findings.js";
 import { checkMandate, checkPayPalApproval, mandateHash, mandateStatusAt, MandateSchema, MandateStore, type LifecycleEvent } from "../src/mandate.js";
@@ -961,5 +962,19 @@ describe("PayPal records agent (PayPal's Agent Toolkit, read-only)", () => {
   it("stops when the desk's AI budget can't cover a turn", async () => {
     const { toolkit } = fakeToolkit();
     await expect(askRecords({ claude: fakeClaude([]), model: "anthropic/claude-sonnet-5.5", toolkit, budget: new DailyBudget(0.01) }, "Anything?")).rejects.toBeInstanceOf(BudgetExhausted);
+  });
+});
+
+describe("textPdf", () => {
+  it("writes an ASCII PDF with escaped text, a page per 60 lines and xref offsets that hold", () => {
+    const pdf = textPdf(Array.from({ length: 70 }, (_, i) => `line ${i} (sources: tracking[0]) · “x” ✓`).join("\n") + `\n${"word ".repeat(40)}`);
+    expect(pdf.startsWith("%PDF-1.4\n")).toBe(true);
+    expect([...pdf].every((c) => c.charCodeAt(0) < 0x80)).toBe(true);
+    expect(pdf).toContain("(line 0 \\(sources: tracking[0]\\) \\267 \\223x\\224 ?)'");
+    expect(pdf).toContain("/Count 2");
+    expect(pdf.match(/\((?:word )+word\)'/g)?.map((line) => line.length - 3)).toEqual([94, 94, 9]);
+    const offsets = pdf.match(/^\d{10} 00000 n $/gm)!.map((entry) => Number(entry.slice(0, 10)));
+    offsets.forEach((at, i) => expect(pdf.slice(at).startsWith(`${i + 1} 0 obj\n`)).toBe(true));
+    expect(Number(/startxref\n(\d+)/.exec(pdf)![1])).toBe(pdf.indexOf("xref\n"));
   });
 });

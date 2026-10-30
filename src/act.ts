@@ -26,7 +26,7 @@ export const ASK_WHAT_ARRIVED =
 // shortcut: PayPal's evidence table gives not-received claims PROOF_OF_FULFILLMENT, but the sandbox refused it at the
 // chargeback stage in every form on 2026-10-29 (EVIDENCE_TYPE_IS_NOT_ALLOWED, debug_id f11254614730b) and accepted
 // OTHER with notes; revisit before running against live PayPal. Code writes the delivered trackers into those notes
-// (PayPal also holds them from the Tracking API), and no text file goes with them.
+// (PayPal also holds them from the Tracking API), and no file goes with them: OTHER with files was not tried there.
 function evidenceStep(claim: Claim, notes: string, files: EvidenceFile[], tracking: Tracking[]): Step {
   if (claim.reason === "MERCHANDISE_OR_SERVICE_NOT_RECEIVED") {
     const delivered = tracking.filter((t) => t.status === "DELIVERED").map((t) => `${t.carrier || "carrier not recorded"} ${t.trackingNumber}`);

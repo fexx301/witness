@@ -8,7 +8,7 @@ import { normalizeDispute, type Claim } from "./claim.js";
 import { claimTypeForReason, comparisonFinding, decide, factsFor, writingFor, type Assessment, type Assessor, type Decision, type Writing } from "./decide.js";
 import { authorizationFinding, fulfilmentFinding, resolveEvidenceRequests, type EvidenceRequestStatus, type Finding } from "./findings.js";
 import { checkMandate, checkPayPalApproval, type Mandate, type MandateCheck, type MandateStore } from "./mandate.js";
-import { renderEvidencePack } from "./pack.js";
+import { renderEvidencePack, textPdf } from "./pack.js";
 import type { MerchantPolicy } from "./policy.js";
 import type { Disputes, EvidenceFile } from "./paypal/disputes.js";
 import { trackingFromOrder, type Capture, type Orders, type Tracking } from "./paypal/orders.js";
@@ -99,9 +99,7 @@ export async function executeReviewed(deps: Deps, reviewed: RunRecord): Promise<
   const moved = now.findings.filter((f) => reviewed.findings.find((r) => r.key === f.key)?.status !== f.status).map((f) => f.key);
   if (moved.length) throw new ExecutionRefused(`The records changed since the review (${moved.join(", ")}). Investigate again before acting.`);
 
-  const files: EvidenceFile[] = [{ filename: `witness-${live.disputeId}.txt`, contentType: "text/plain", data: reviewed.evidencePack }];
-  if (now.mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(now.mandate, null, 2) });
-  const steps = planSteps(live, reviewed.decision, reviewed.writing, files, now.tracking, deps.policy.returnAddress);
+  const steps = planSteps(live, reviewed.decision, reviewed.writing, evidenceFiles(live.disputeId, reviewed.evidencePack, now.mandate), now.tracking, deps.policy.returnAddress);
   if (sends(steps) !== sends(reviewed.steps))
     throw new ExecutionRefused(`PayPal now allows "${sends(steps)}", not the reviewed "${sends(reviewed.steps)}". Investigate again before acting.`);
   if (steps.every((s) => s.kind === "none")) throw new ExecutionRefused("This review sends nothing to PayPal.");
@@ -118,6 +116,13 @@ export async function executeReviewed(deps: Deps, reviewed: RunRecord): Promise<
   };
   writeFileSync(recordFile(deps.runsDir, live.disputeId, record.ranAt, "executed"), JSON.stringify(record, null, 2) + "\n");
   return record;
+}
+
+// The evidence pack and the mandate as PDFs, the file type PayPal accepts.
+function evidenceFiles(disputeId: string, evidencePack: string, mandate: Mandate | null): EvidenceFile[] {
+  const files = [{ filename: `witness-${disputeId}.pdf`, contentType: "application/pdf", data: textPdf(evidencePack) }];
+  if (mandate) files.push({ filename: "mandate.pdf", contentType: "application/pdf", data: textPdf(JSON.stringify(mandate, null, 2)) });
+  return files;
 }
 
 // What code establishes from PayPal's records and the mandate store before any model reads the case.
@@ -200,10 +205,7 @@ export async function processDispute(deps: Deps, disputeId: string): Promise<Run
   const evidencePack = renderEvidencePack({
     claim, mandate, checks, tracking, findings, requests, assessment, decision, writing, policyName: deps.policy.name, generatedAt: now.toISOString(),
   });
-  const files: EvidenceFile[] = [{ filename: `witness-${claim.disputeId}.txt`, contentType: "text/plain", data: evidencePack }];
-  if (mandate) files.push({ filename: "mandate.txt", contentType: "text/plain", data: JSON.stringify(mandate, null, 2) });
-
-  const steps = planSteps(claim, decision, writing, files, tracking, deps.policy.returnAddress);
+  const steps = planSteps(claim, decision, writing, evidenceFiles(claim.disputeId, evidencePack, mandate), tracking, deps.policy.returnAddress);
 
 
   const record: RunRecord = {
