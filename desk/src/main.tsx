@@ -1,6 +1,6 @@
 // The Witness investigation desk: AG Studio with the dispute queue, the investigation page, and
 // Witness plus AG's own agents in the chat.
-import { AgStudioAiModule, AgStudioModuleRegistry, enableStudioDevValidations, studioTheme, type AgStudioApi } from "ag-studio";
+import { AgStudioAiModule, AgStudioLicenseManager, AgStudioModuleRegistry, enableStudioDevValidations, studioTheme, type AgStudioApi } from "ag-studio";
 import { AgStudio } from "ag-studio-react";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
@@ -13,6 +13,8 @@ import { widgets, type WitnessRegistry } from "./widgets";
 
 if (import.meta.env.DEV) enableStudioDevValidations();
 AgStudioModuleRegistry.registerModules([AgStudioAiModule]);
+// The key is set at build time in desk/.env, never committed; without one AG Studio shows its watermark off localhost.
+if (import.meta.env.VITE_AG_STUDIO_LICENSE_KEY) AgStudioLicenseManager.setLicenseKey(import.meta.env.VITE_AG_STUDIO_LICENSE_KEY);
 
 // Light, for video and screen-share: ink text on near-white, with a cobalt accent.
 const theme = studioTheme.withParams({
