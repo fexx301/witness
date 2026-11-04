@@ -7,7 +7,7 @@ import { createRoot } from "react-dom/client";
 import { ai } from "./agents";
 import { addCopyButtons } from "./copyReplies";
 import { onRefresh, witnessSource } from "./data";
-import { connectStudio, pageChanged, showPage, usePage, type PageId } from "./deskState";
+import { connectStudio, openDispute, pageChanged, showPage, usePage, type PageId } from "./deskState";
 import { initialState } from "./initialState";
 import { widgets, type WitnessRegistry } from "./widgets";
 
@@ -44,6 +44,9 @@ let studioApi: AgStudioApi | undefined;
 function onApiReady(api: AgStudioApi) {
   studioApi = api;
   connectStudio(api);
+  // "?dispute=<id>" opens that investigation, so a link can land a reader on one case.
+  const linked = new URLSearchParams(window.location.search).get("dispute");
+  if (linked) openDispute(linked);
   // A development handle, so a page built in the editor can be exported with getState().
   if (import.meta.env.DEV) (window as unknown as { witnessStudio?: AgStudioApi }).witnessStudio = api;
 }

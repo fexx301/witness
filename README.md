@@ -23,10 +23,20 @@ caffeine keeps up; the agent bought regular. Witness finds the purchase authoriz
 the order delivered as listed, and recommends a refund under the merchant's policy. A rules-only tool would
 have defended.*
 
+## Who it is for
+
+Merchants whose buyers shop through AI agents. Once an agent does the buying, a dispute is no longer only about
+whether the parcel arrived: the buyer may have authorized the agent and still not got what they asked for, and
+the mistake may be the agent's, not the merchant's. A merchant who can't tell which defends the wrong cases and
+refunds the wrong ones. Witness does the investigation a careful person would do for each dispute (what the
+buyer authorized, what the agent bought, what arrived) and prepares the response, with its evidence, for that
+person to approve.
+
 ## For judges: five minutes
 
 1. **Watch the video** (under 3 minutes): [YouTube link, added at submission].
-2. **Open the hosted desk**: [link, added at submission]. No login. Open a dispute from the queue: the case
+2. **Open the hosted desk**: [link, added at submission]. No login. Adding `?dispute=PP-R-VWF-10194381` to the
+   address opens the case pictured above. Or open a dispute from the queue: the case
    summary gives Witness's decision and the reason, the four facts in plain words, and what a rules-only tool
    would have chosen. In the chat, ask it to investigate a dispute by its ID: AG Studio's lead agent hands it to
    Witness, which runs a fresh dry run. Sending to PayPal is off for visitors; the video shows it.
@@ -148,7 +158,10 @@ cd desk && npm install && npm run dev   # the desk on http://localhost:5173
 
 ![The Witness dispute queue: KPIs, the queue with the rules-only and Witness decisions side by side, and decisions by reason](assets/desk-queue.png)
 
-The desk is built on AG Studio:
+The desk is built on AG Studio: Witness's own widgets for the case (`desk/src/widgets.tsx`), a theme of its
+own (`studioTheme` in `desk/src/main.tsx`), and two custom agents, Witness and PayPal records, that AG Studio's
+built-in lead agent delegates to, all running on Claude through an adapter to the Witness API
+(`desk/src/agents.ts`, `desk/src/llmAdapter.ts`). Its two pages and the chat:
 
 - **Dispute queue:** KPIs, the queue table (open disputes due soonest first; a dispute's ID opens it) and
   decisions by reason, from live sandbox disputes. AG Studio's
