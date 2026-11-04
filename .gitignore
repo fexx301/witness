@@ -6,3 +6,6 @@ data/policy.json
 data/mandates/
 # The built desk
 desk/dist/
+# Local review notes and staging scratch files, not part of the submission
+minimaxfindings.md
+staging-mandate.json

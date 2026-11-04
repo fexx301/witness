@@ -16,6 +16,13 @@ apart. For a buyer's own purchase, only the delivery and listing questions apply
 
 Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run against live PayPal.
 
+![The Witness investigation page for sandbox dispute PP-R-VWF-10194381](assets/desk-investigation.png)
+
+*A sandbox dispute over an agent's purchase. The buyer said the coffee was for evening drinking by someone
+caffeine keeps up; the agent bought regular. Witness finds the purchase authorized, the instruction broken and
+the order delivered as listed, and recommends a refund under the merchant's policy. A rules-only tool would
+have defended.*
+
 ## For judges: five minutes
 
 1. **Watch the video** (under 3 minutes): [YouTube link, added at submission].
@@ -67,6 +74,23 @@ Built for the PayPal AI Hackathon 2026. Sandbox only: Witness refuses to run aga
 6. **Act** only through the responses PayPal currently offers (provide evidence, supporting info, message
    and escalate, accept the claim, offer a return). Dry run by default.
 7. **Record** every run: findings, sources, gaps, decision, evidence pack and PayPal debug IDs, in `data/runs/`.
+
+## PayPal APIs Witness uses
+
+All calls go to the sandbox. Witness's own calls use one client that signs in with `POST /v1/oauth2/token`
+against `api-m.sandbox.paypal.com` (`src/paypal/client.ts`); the PayPal Agent Toolkit row runs on the toolkit
+itself, in sandbox mode.
+
+| What for | PayPal API | Code |
+|---|---|---|
+| Read the dispute: claim, buyer's messages, evidence requests, the responses allowed now | Disputes: `GET /v1/customer/disputes`, `GET /v1/customer/disputes/{id}` | `src/paypal/disputes.ts` |
+| Respond to it | Disputes: `provide-evidence`, `provide-supporting-info`, `send-message`, `accept-claim`, `make-offer`, `escalate` (all `POST /v1/customer/disputes/{id}/…`) | `src/paypal/disputes.ts` |
+| Settle a sandbox dispute, for staging only | Disputes: `POST /v1/customer/disputes/{id}/adjudicate` | `src/paypal/disputes.ts` |
+| What was bought | Orders v2: `GET /v2/checkout/orders/{id}`; Payments v2: `GET /v2/payments/captures/{id}` | `src/paypal/orders.ts` |
+| What arrived | Tracking: `GET /v1/shipping/trackers/{id}` | `src/paypal/orders.ts` |
+| The buyer accepts a mandate and saves PayPal for their agent | Orders v2 with vault (`store_in_vault: ON_SUCCESS`): `POST /v2/checkout/orders`, capture, then `GET` for the vault ID and the approval | `src/accept.ts` |
+| The reference shopping agent buys with no buyer present | Orders v2 with `vault_id`: `POST /v2/checkout/orders`, `POST …/capture`, `POST …/track`; Tracking: `PUT /v1/shipping/trackers/{id}` | `src/agentBuy.ts` |
+| The desk chat's PayPal records agent | PayPal Agent Toolkit (`@paypal/agent-toolkit`), read-only: list and get disputes, get an order, get tracking, list transactions, get a refund | `src/paypalRecords.ts` |
 
 ## What Witness does not claim
 
@@ -122,6 +146,8 @@ npm run server                          # Witness API on 127.0.0.1:8790; the Pay
 cd desk && npm install && npm run dev   # the desk on http://localhost:5173
 ```
 
+![The Witness dispute queue: KPIs, the queue with the rules-only and Witness decisions side by side, and decisions by reason](assets/desk-queue.png)
+
 The desk is built on AG Studio:
 
 - **Dispute queue:** KPIs, the queue table (open disputes due soonest first; a dispute's ID opens it) and
@@ -146,7 +172,7 @@ investigation that person reviewed, with no new assessment, and is refused if th
 that matters, was already sent, or is resolved. On a server that isn't bound to localhost it is off unless
 `WITNESS_ALLOW_EXECUTE=1`. Desk chat is capped at 8,000 output tokens a turn and `WITNESS_DESK_AI_DAILY_USD`
 a day ($1 by default), and each turn's worst case is reserved before the call so turns running in parallel can't
-overshoot it. AG Studio runs locally without a licence key, with a watermark.
+overshoot it. AG Studio runs without a licence key: on localhost as it is, on any other host with a watermark.
 
 AG Studio's canvas can't reflow, so on a screen narrower than 900 px the desk hides the chat, lets the pages
 scroll sideways, and shows a note linking to the demo video. The link is set at build time with
@@ -160,7 +186,8 @@ the HTTPS certificate for a domain such as a DuckDNS name.
 1. Create the server with a static IP, open ports 80 and 443, and point the domain at the IP.
 2. On the server: `curl -fsSLO https://raw.githubusercontent.com/fexx301/witness/main/deploy/setup.sh && bash setup.sh <name>.duckdns.org`.
    The first run installs Node 22 and Caddy, clones the repo to `/opt/witness`, and stops to ask for keys.
-3. Copy your `.env` and your `data/` folder to `/opt/witness`, then run `bash setup.sh <name>.duckdns.org` again.
+3. Copy your `.env` and your `data/` folder to `/opt/witness`, and `desk/.env` (the video link, read when the desk
+   is built) to `/opt/witness/desk`, then run `bash setup.sh <name>.duckdns.org` again.
    Run it again later to update.
 
 On a hosted desk, visitors can read the queue and investigations, chat (capped by `WITNESS_DESK_AI_DAILY_USD`),
@@ -203,5 +230,5 @@ real disputes.
 
 MIT, for this repository's code. The desk depends on AG Studio (`ag-studio` and `ag-studio-react`), which AG Grid
 Ltd licenses commercially under its own terms (`desk/node_modules/ag-studio/LICENSE.html` once installed), not
-under MIT. The repository doesn't contain it; `npm ci` installs it. It runs without a key, with a watermark, and
-the hosted desk uses the hackathon's AG Studio trial licence.
+under MIT. The repository doesn't contain it; `npm ci` installs it. It runs without a key, with a watermark on any
+host but localhost, and the hosted desk uses the hackathon's AG Studio trial licence.
