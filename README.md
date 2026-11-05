@@ -212,10 +212,11 @@ setting stops the server at startup rather than becoming no limit. The service m
 
 ## Status
 
-Working end to end on the PayPal sandbox. An agent bought the wrong variant under a buyer's instructed
-mandate, the buyer disputed it, Witness investigated it live and refunded it under the merchant's policy,
-and PayPal resolved the case in the buyer's favour (`PP-R-YUX-10193379`). The investigation desk shows the
-queue and each investigation.
+Working end to end on the PayPal sandbox. An agent bought ground coffee under a mandate that said "Whole bean,
+never ground", which the buyer had accepted and approved at PayPal. The buyer disputed it, Witness found the
+agent at fault and the merchant blameless, a person sent the refund from the desk on 2026-11-05 (accept claim,
+debug_id f13281395a2b8), and PayPal resolved the case in the buyer's favour on its own, with no sandbox ruling
+(`PP-R-ZLP-10194382`). The investigation desk shows the queue and each investigation.
 
 PayPal's approval page shows the buyer only the payment, not the mandate's terms, so the buyer accepts the
 terms on Witness's acceptance page and then approves, at PayPal, a first payment that saves PayPal for the
