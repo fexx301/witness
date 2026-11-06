@@ -1,0 +1,185 @@
+{
+  "readAt": "2026-11-06T07:33:48.016Z",
+  "dispute": {
+    "dispute_id": "PP-R-ZLP-10194382",
+    "create_time": "2026-10-24T16:12:47.502Z",
+    "update_time": "2026-11-05T08:03:03.501Z",
+    "disputed_transactions": [
+      {
+        "buyer_transaction_id": "88Y14230MN423214T",
+        "seller_transaction_id": "59G53143H2790550L",
+        "create_time": "2026-10-24T15:53:36.000Z",
+        "transaction_status": "REFUNDED",
+        "gross_amount": {
+          "currency_code": "USD",
+          "value": "16.00"
+        },
+        "invoice_number": "witness-agent-1792857213444",
+        "custom": "ad10ede6a783f1e3decff88441cceff0f48ffdd6774c48e096e3e41e91cab671",
+        "buyer": {
+          "email": "[email]",
+          "payer_id": "[PayPal account]",
+          "name": "John Doe"
+        },
+        "seller": {
+          "email": "[email]",
+          "merchant_id": "[PayPal account]",
+          "name": "Test Store"
+        },
+        "items": [
+          {
+            "item_name": "Decaf, ground, 340 g",
+            "item_description": "Decaf, ground, 340 g",
+            "item_quantity": "1",
+            "reason": "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
+            "notes": "Wrong coffee. I told my shopping assistant to buy whole bean coffee only, never ground, and this bag is ground. I would like a refund, please.",
+            "item_type": "PRODUCT"
+          }
+        ],
+        "seller_protection_eligible": true,
+        "seller_protection_type": "EXPANDED_SELLER_PROTECTION"
+      }
+    ],
+    "reason": "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
+    "status": "RESOLVED",
+    "dispute_amount": {
+      "currency_code": "USD",
+      "value": "16.00"
+    },
+    "dispute_state": "RESOLVED",
+    "dispute_outcome": {
+      "outcome_code": "RESOLVED_BUYER_FAVOUR",
+      "outcome_reason": "SELLER_ISSUED_REFUND",
+      "amount_refunded": {
+        "currency_code": "USD",
+        "value": "16.00"
+      }
+    },
+    "money_movements": [
+      {
+        "affected_party": "SELLER",
+        "amount": {
+          "currency_code": "USD",
+          "value": "16.00"
+        },
+        "initiated_time": "2026-11-05T08:00:59.740Z",
+        "type": "DEBIT",
+        "reason": "DISPUTE_SETTLEMENT"
+      },
+      {
+        "affected_party": "SELLER",
+        "amount": {
+          "currency_code": "USD",
+          "value": "1.05"
+        },
+        "initiated_time": "2026-11-05T08:00:59.740Z",
+        "type": "DEBIT",
+        "reason": "DISPUTE_SETTLEMENT_FEE"
+      },
+      {
+        "affected_party": "BUYER",
+        "amount": {
+          "currency_code": "USD",
+          "value": "16.00"
+        },
+        "initiated_time": "2026-11-05T08:00:59.740Z",
+        "type": "CREDIT",
+        "reason": "DISPUTE_SETTLEMENT"
+      }
+    ],
+    "fund_movements": [
+      {
+        "party": "RECEIVER",
+        "amount": {
+          "currency_code": "USD",
+          "value": "14.95"
+        },
+        "initiated_time": "2026-10-24T16:16:04.000Z",
+        "type": "DEBIT",
+        "reason": "HOLD_PLACED"
+      },
+      {
+        "party": "SELLER",
+        "amount": {
+          "currency_code": "USD",
+          "value": "16.00"
+        },
+        "initiated_time": "2026-11-05T08:00:59.740Z",
+        "type": "DEBIT",
+        "reason": "DISPUTE_SETTLEMENT"
+      },
+      {
+        "party": "BUYER",
+        "amount": {
+          "currency_code": "USD",
+          "value": "16.00"
+        },
+        "initiated_time": "2026-11-05T08:00:59.740Z",
+        "type": "CREDIT",
+        "reason": "DISPUTE_SETTLEMENT"
+      }
+    ],
+    "dispute_life_cycle_stage": "INQUIRY",
+    "dispute_channel": "INTERNAL",
+    "messages": [
+      {
+        "posted_by": "BUYER",
+        "time_posted": "2026-10-24T16:12:47.502Z",
+        "content": "Wrong coffee. I told my shopping assistant to buy whole bean coffee only, never ground, and this bag is ground. I would like a refund, please."
+      }
+    ],
+    "extensions": {
+      "merchant_contacted": false,
+      "buyer_contacted_time": "2026-10-24T16:12:46.722Z"
+    },
+    "evidences": [
+      {
+        "evidence_type": "CREATE",
+        "notes": "Wrong coffee. I told my shopping assistant to buy whole bean coffee only, never ground, and this bag is ground. I would like a refund, please.",
+        "source": "SUBMITTED_BY_BUYER",
+        "date": "2026-10-24T16:12:47.502Z",
+        "dispute_life_cycle_stage": "INQUIRY"
+      },
+      {
+        "evidence_type": "OTHER",
+        "notes": "Witness: Agent instruction violation, not a merchant fulfilment failure: The mandate says 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which breaks that instruction even though it fits the spending scope. The decaf choice is consistent with the second instruction about avoiding caffeine.",
+        "source": "SUBMITTED_BY_SELLER",
+        "date": "2026-11-05T08:00:59.836Z",
+        "action_info": {
+          "action": "ACCEPT_CLAIM",
+          "response_option": "REFUND"
+        },
+        "dispute_life_cycle_stage": "INQUIRY"
+      }
+    ],
+    "offer": {
+      "buyer_requested_amount": {
+        "currency_code": "USD",
+        "value": "16.00"
+      }
+    },
+    "refund_details": {
+      "allowed_refund_amount": {
+        "currency_code": "USD",
+        "value": "16.00"
+      },
+      "transactions": [
+        {
+          "id": "2JF089194R306184M",
+          "gross_amount": {
+            "currency_code": "USD",
+            "value": "16.00"
+          },
+          "create_time": "2026-11-05T08:00:59.000Z"
+        }
+      ]
+    },
+    "links": [
+      {
+        "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-ZLP-10194382",
+        "rel": "self",
+        "method": "GET"
+      }
+    ]
+  }
+}

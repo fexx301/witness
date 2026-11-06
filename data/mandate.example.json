@@ -1,0 +1,13 @@
+{
+  "kind": "witness.mandate.v1",
+  "principal": "sandbox buyer",
+  "agent": "witness-reference-shopper",
+  "scope": {
+    "max_amount_usd": "40.00",
+    "merchants": ["YOUR_SANDBOX_MERCHANT_ACCOUNT_ID"],
+    "category": "coffee beans"
+  },
+  "instructions": ["Whole bean, never ground.", "It's for my partner to drink in the evening, and caffeine keeps her up."],
+  "valid_until": "2026-12-31",
+  "approved_at": "2026-11-06T00:00:00+00:00"
+}

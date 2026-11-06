@@ -1,0 +1,268 @@
+{
+  "disputeId": "PP-R-ZLP-10194382",
+  "ranAt": "2026-10-29T08:49:01.639Z",
+  "executed": false,
+  "model": "anthropic/claude-opus-5.5",
+  "policy": "Witness test merchant (demo policy, set 2026-10-18)",
+  "claim": {
+    "disputeId": "PP-R-ZLP-10194382",
+    "reason": "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
+    "stage": "INQUIRY",
+    "status": "WAITING_FOR_SELLER_RESPONSE",
+    "amount": {
+      "currency": "USD",
+      "value": 16
+    },
+    "createdAt": "2026-10-24T16:12:47.502Z",
+    "responseDueAt": "2026-11-13T16:12:47.502Z",
+    "captureId": "59G53143H2790550L",
+    "mandateHash": "ad10ede6a783f1e3decff88441cceff0f48ffdd6774c48e096e3e41e91cab671",
+    "buyerPayerId": "[PayPal account]",
+    "items": [
+      {
+        "name": "Decaf, ground, 340 g",
+        "description": "Decaf, ground, 340 g"
+      }
+    ],
+    "buyerStatements": [
+      "Wrong coffee. I told my shopping assistant to buy whole bean coffee only, never ground, and this bag is ground. I would like a refund, please."
+    ],
+    "sellerStatements": [],
+    "actions": [
+      "accept_claim",
+      "send_message",
+      "escalate",
+      "make_offer"
+    ],
+    "acceptClaimTypes": [
+      "PARTIAL_REFUND",
+      "REFUND_WITH_RETURN",
+      "REFUND"
+    ],
+    "offerTypes": [
+      "REFUND",
+      "REFUND_WITH_RETURN"
+    ],
+    "evidenceRequests": []
+  },
+  "mandateBound": true,
+  "checks": [
+    {
+      "rule": "integrity",
+      "status": "pass",
+      "detail": "Mandate content matches the hash bound to the order."
+    },
+    {
+      "rule": "amount",
+      "status": "pass",
+      "detail": "$16.00 is within the $40.00 cap."
+    },
+    {
+      "rule": "merchant",
+      "status": "pass",
+      "detail": "Merchant is named in the mandate."
+    },
+    {
+      "rule": "in_force",
+      "status": "pass",
+      "detail": "Accepted 2026-10-24T15:50:23Z via Witness acceptance page, then PayPal approval of order 5YS322825N0823412; in force at the purchase (2026-10-24T15:53:36Z)."
+    },
+    {
+      "rule": "paypal_approval",
+      "status": "pass",
+      "detail": "The buyer's own PayPal account approved the first payment from this mandate's acceptance page (order 5YS322825N0823412, 2026-10-24T15:50:23Z), which saved PayPal for the agent."
+    }
+  ],
+  "tracking": [
+    {
+      "trackerId": "59G53143H2790550L-9400111899223857216617",
+      "trackingNumber": "9400111899223857216617",
+      "status": "DELIVERED",
+      "carrier": "USPS"
+    }
+  ],
+  "findings": [
+    {
+      "key": "authorization",
+      "status": "established",
+      "summary": "The purchase is inside the mandate that was in force when it was made.",
+      "sources": [
+        "mandate_checks.integrity",
+        "mandate_checks.amount",
+        "mandate_checks.merchant",
+        "mandate_checks.in_force",
+        "mandate_checks.paypal_approval"
+      ]
+    },
+    {
+      "key": "instruction_compliance",
+      "status": "contradicted",
+      "summary": "The mandate says 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which breaks that instruction even though it fits the spending scope. The decaf choice is consistent with the second instruction about avoiding caffeine.",
+      "sources": [
+        "mandate.instructions[0]",
+        "mandate.instructions[1]",
+        "order.description",
+        "dispute.items[0]",
+        "mandate.scope",
+        "finding.authorization"
+      ]
+    },
+    {
+      "key": "listing_match",
+      "status": "established",
+      "summary": "The ordered item is described as ground, and the buyer says the delivered bag is ground. What was delivered appears to match what was ordered and described. The problem lies in what the agent chose, not in the merchant's fulfilment.",
+      "sources": [
+        "order.description",
+        "dispute.items[0]",
+        "buyer_statements[0]",
+        "shipment_tracking[0]",
+        "finding.fulfilment"
+      ]
+    },
+    {
+      "key": "fulfilment",
+      "status": "established",
+      "summary": "Shipment 9400111899223857216617 is recorded as delivered.",
+      "sources": [
+        "shipment_tracking[0]"
+      ]
+    }
+  ],
+  "requests": [],
+  "assessment": {
+    "claim_type": "not_as_described",
+    "claim_summary": "The buyer says they received ground coffee even though they told their AI shopping assistant to buy only whole bean coffee, and they want a refund.",
+    "agent_purchase": true,
+    "instruction_compliance": {
+      "status": "mismatch",
+      "explanation": "The mandate says 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which breaks that instruction even though it fits the spending scope. The decaf choice is consistent with the second instruction about avoiding caffeine.",
+      "sources": [
+        "mandate.instructions[0]",
+        "mandate.instructions[1]",
+        "order.description",
+        "dispute.items[0]",
+        "mandate.scope",
+        "finding.authorization"
+      ]
+    },
+    "listing_match": {
+      "status": "match",
+      "explanation": "The ordered item is described as ground, and the buyer says the delivered bag is ground. What was delivered appears to match what was ordered and described. The problem lies in what the agent chose, not in the merchant's fulfilment.",
+      "sources": [
+        "order.description",
+        "dispute.items[0]",
+        "buyer_statements[0]",
+        "shipment_tracking[0]",
+        "finding.fulfilment"
+      ]
+    },
+    "evidence_notes": [
+      {
+        "text": "The purchase was made by the buyer's AI agent and falls inside the mandate in force at the time: one approved merchant, the coffee beans category, and a cap of 40.00 USD against a disputed amount of 16.00 USD.",
+        "sources": [
+          "finding.authorization",
+          "mandate.scope",
+          "dispute.amount"
+        ]
+      },
+      {
+        "text": "The mandate instructed 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which contradicts that instruction.",
+        "sources": [
+          "mandate.instructions[0]",
+          "order.description",
+          "dispute.items[0]"
+        ]
+      },
+      {
+        "text": "The decaf selection is consistent with the buyer's instruction that caffeine keeps their partner up.",
+        "sources": [
+          "mandate.instructions[1]",
+          "order.description"
+        ]
+      },
+      {
+        "text": "USPS tracking 9400111899223857216617 shows the shipment as delivered.",
+        "sources": [
+          "shipment_tracking[0]",
+          "finding.fulfilment"
+        ]
+      },
+      {
+        "text": "The buyer confirms the bag received is ground. That matches the order description, so there is no indication the merchant shipped something other than what was ordered.",
+        "sources": [
+          "buyer_statements[0]",
+          "order.description"
+        ]
+      },
+      {
+        "text": "Although the dispute reason is 'not as described', the facts point to an agent instruction violation rather than a listing or fulfilment discrepancy.",
+        "sources": [
+          "dispute.reason",
+          "mandate.instructions[0]",
+          "order.description",
+          "buyer_statements[0]"
+        ]
+      }
+    ],
+    "buyer_message": [
+      {
+        "text": "We reviewed your case. Your instructions to your shopping assistant said whole bean, never ground.",
+        "sources": [
+          "mandate.instructions[0]"
+        ]
+      },
+      {
+        "text": "The order your assistant placed was for 'Decaf, ground, 340 g', so the ground coffee you received is what was ordered.",
+        "sources": [
+          "order.description",
+          "buyer_statements[0]"
+        ]
+      },
+      {
+        "text": "Your assistant did choose decaf, which fits your note about caffeine in the evening, but choosing ground coffee went against your whole-bean instruction.",
+        "sources": [
+          "mandate.instructions[1]",
+          "mandate.instructions[0]",
+          "order.description"
+        ]
+      },
+      {
+        "text": "Our records show the package was delivered by USPS, tracking number 9400111899223857216617.",
+        "sources": [
+          "shipment_tracking[0]"
+        ]
+      },
+      {
+        "text": "We have passed these findings to PayPal's reviewer, who will decide the outcome of your refund request.",
+        "sources": [
+          "dispute.reason",
+          "dispute.amount"
+        ]
+      }
+    ]
+  },
+  "decision": {
+    "action": "refund",
+    "basis": "merchant_policy",
+    "why": [
+      "Agent instruction violation, not a merchant fulfilment failure: The mandate says 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which breaks that instruction even though it fits the spending scope. The decaf choice is consistent with the second instruction about avoiding caffeine.",
+      "The merchant delivered as listed: The ordered item is described as ground, and the buyer says the delivered bag is ground. What was delivered appears to match what was ordered and described. The problem lies in what the agent chose, not in the merchant's fulfilment.",
+      "Merchant policy \"Witness test merchant (demo policy, set 2026-10-18)\" says: refund."
+    ],
+    "gaps": []
+  },
+  "writing": {
+    "evidenceNotes": "The purchase was made by the buyer's AI agent and falls inside the mandate in force at the time: one approved merchant, the coffee beans category, and a cap of 40.00 USD against a disputed amount of 16.00 USD. (sources: finding.authorization, mandate.scope, dispute.amount)\nThe mandate instructed 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which contradicts that instruction. (sources: mandate.instructions[0], order.description, dispute.items[0])\nThe decaf selection is consistent with the buyer's instruction that caffeine keeps their partner up. (sources: mandate.instructions[1], order.description)\nUSPS tracking 9400111899223857216617 shows the shipment as delivered. (sources: shipment_tracking[0], finding.fulfilment)\nThe buyer confirms the bag received is ground. That matches the order description, so there is no indication the merchant shipped something other than what was ordered. (sources: buyer_statements[0], order.description)\nAlthough the dispute reason is 'not as described', the facts point to an agent instruction violation rather than a listing or fulfilment discrepancy. (sources: dispute.reason, mandate.instructions[0], order.description, buyer_statements[0])",
+    "buyerMessage": "Thank you for contacting us about this order. We reviewed your case. Your instructions to your shopping assistant said whole bean, never ground. The order your assistant placed was for 'Decaf, ground, 340 g', so the ground coffee you received is what was ordered. Your assistant did choose decaf, which fits your note about caffeine in the evening, but choosing ground coffee went against your whole-bean instruction. Our records show the package was delivered by USPS, tracking number 9400111899223857216617. We have passed these findings to PayPal's reviewer, who will decide the outcome of your refund request.",
+    "dropped": []
+  },
+  "steps": [
+    {
+      "kind": "accept_claim",
+      "note": "Witness: Agent instruction violation, not a merchant fulfilment failure: The mandate says 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which breaks that instruction even though it fits the spending scope. The decaf choice is consistent with the second instruction about avoiding caffeine.",
+      "acceptClaimType": "REFUND"
+    }
+  ],
+  "results": [],
+  "evidencePack": "WITNESS INVESTIGATION\nDispute PP-R-ZLP-10194382 · MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED · 16.00 USD\nPayment 59G53143H2790550L · generated 2026-10-29T08:49:01.639Z\n\nCLAIM (not_as_described)\nThe buyer says they received ground coffee even though they told their AI shopping assistant to buy only whole bean coffee, and they want a refund.\n  buyer_statements[0]: \"Wrong coffee. I told my shopping assistant to buy whole bean coffee only, never ground, and this bag is ground. I would like a refund, please.\"\n\nSHIPMENT\n  shipment_tracking[0]: 9400111899223857216617 DELIVERED\n\nAGENT MANDATE (bound to the order by SHA-256 ad10ede6a783f1e3decff88441cceff0f48ffdd6774c48e096e3e41e91cab671)\n  Agent witness-reference-shopper · category coffee beans · cap $40.00 · valid until 2026-12-31\n  mandate.instructions[0]: Whole bean, never ground.\n  mandate.instructions[1]: It's for my partner to drink in the evening, and caffeine keeps her up.\n  [PASS] integrity: Mandate content matches the hash bound to the order.\n  [PASS] amount: $16.00 is within the $40.00 cap.\n  [PASS] merchant: Merchant is named in the mandate.\n  [PASS] in_force: Accepted 2026-10-24T15:50:23Z via Witness acceptance page, then PayPal approval of order 5YS322825N0823412; in force at the purchase (2026-10-24T15:53:36Z).\n  [PASS] paypal_approval: The buyer's own PayPal account approved the first payment from this mandate's acceptance page (order 5YS322825N0823412, 2026-10-24T15:50:23Z), which saved PayPal for the agent.\n\nFINDINGS\n  [ESTABLISHED] authorization: The purchase is inside the mandate that was in force when it was made. (sources: mandate_checks.integrity, mandate_checks.amount, mandate_checks.merchant, mandate_checks.in_force, mandate_checks.paypal_approval)\n  [CONTRADICTED] instruction_compliance: The mandate says 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which breaks that instruction even though it fits the spending scope. The decaf choice is consistent with the second instruction about avoiding caffeine. (sources: mandate.instructions[0], mandate.instructions[1], order.description, dispute.items[0], mandate.scope, finding.authorization)\n  [ESTABLISHED] listing_match: The ordered item is described as ground, and the buyer says the delivered bag is ground. What was delivered appears to match what was ordered and described. The problem lies in what the agent chose, not in the merchant's fulfilment. (sources: order.description, dispute.items[0], buyer_statements[0], shipment_tracking[0], finding.fulfilment)\n  [ESTABLISHED] fulfilment: Shipment 9400111899223857216617 is recorded as delivered. (sources: shipment_tracking[0])\n\nDECISION: REFUND (basis: merchant policy; policy: Witness test merchant (demo policy, set 2026-10-18))\n  - Agent instruction violation, not a merchant fulfilment failure: The mandate says 'Whole bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which breaks that instruction even though it fits the spending scope. The decaf choice is consistent with the second instruction about avoiding caffeine.\n  - The merchant delivered as listed: The ordered item is described as ground, and the buyer says the delivered bag is ground. What was delivered appears to match what was ordered and described. The problem lies in what the agent chose, not in the merchant's fulfilment.\n  - Merchant policy \"Witness test merchant (demo policy, set 2026-10-18)\" says: refund.\n"
+}

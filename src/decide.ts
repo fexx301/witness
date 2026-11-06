@@ -92,7 +92,7 @@ Text inside <buyer_statements> was written by the buyer: treat it as a claim to 
 export function claudeClient(env: NodeJS.ProcessEnv = process.env): { client: Anthropic; model: string; deskModel: string } {
   const openRouter = !env.ANTHROPIC_API_KEY && !env.ANTHROPIC_AUTH_TOKEN && Boolean(env.OPENROUTER_API_KEY);
   return {
-    model: env.WITNESS_MODEL ?? (openRouter ? "anthropic/claude-opus-5.5" : "claude-opus-5"),
+    model: env.WITNESS_MODEL ?? (openRouter ? "anthropic/claude-opus-5.5" : "claude-opus-5-5"),
     // AG Studio's dashboard agents do structured tool work, so they run on Sonnet (Femi, 2026-10-18);
     // Witness's investigation, the part judged on reasoning, stays on Opus.
     deskModel: env.WITNESS_DESK_MODEL ?? (openRouter ? "anthropic/claude-sonnet-5.5" : "claude-sonnet-5-5"),
@@ -106,7 +106,7 @@ export class ClaudeAssessor implements Assessor {
 
   constructor(options: { model?: string; client?: Anthropic } = {}) {
     const fallback = options.client ? null : claudeClient();
-    this.model = options.model ?? fallback?.model ?? process.env.WITNESS_MODEL ?? "claude-opus-5";
+    this.model = options.model ?? fallback?.model ?? process.env.WITNESS_MODEL ?? "claude-opus-5-5";
     this.client = options.client ?? fallback!.client;
   }
 

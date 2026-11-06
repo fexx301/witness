@@ -1,0 +1,32 @@
+%PDF-1.4
+1 0 obj
+<</Type/Catalog/Pages 2 0 R>>
+endobj
+2 0 obj
+<</Type/Pages/Kids[4 0 R]/Count 1>>
+endobj
+3 0 obj
+<</Type/Font/Subtype/Type1/BaseFont/Courier/Encoding/WinAnsiEncoding>>
+endobj
+4 0 obj
+<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>>>/Contents 5 0 R>>
+endobj
+5 0 obj
+<</Length 3658>>
+stream
+BT /F1 9 Tf 11 TL 36 770 Td (WITNESS INVESTIGATION)' (Dispute PP-R-ZLP-10194382 \267 MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED \267 16.00 USD)' (Payment 59G53143H2790550L \267 generated 2026-10-29T08:49:01.639Z)' ()' (CLAIM \(not_as_described\))' (The buyer says they received ground coffee even though they told their AI shopping assistant to)' (buy only whole bean coffee, and they want a refund.)' (  buyer_statements[0]: "Wrong coffee. I told my shopping assistant to buy whole bean coffee)' (only, never ground, and this bag is ground. I would like a refund, please.")' ()' (SHIPMENT)' (  shipment_tracking[0]: 9400111899223857216617 DELIVERED)' ()' (AGENT MANDATE \(bound to the order by SHA-256)' (ad10ede6a783f1e3decff88441cceff0f48ffdd6774c48e096e3e41e91cab671\))' (  Agent witness-reference-shopper \267 category coffee beans \267 cap $40.00 \267 valid until 2026-12-31)' (  mandate.instructions[0]: Whole bean, never ground.)' (  mandate.instructions[1]: It's for my partner to drink in the evening, and caffeine keeps her)' (up.)' (  [PASS] integrity: Mandate content matches the hash bound to the order.)' (  [PASS] amount: $16.00 is within the $40.00 cap.)' (  [PASS] merchant: Merchant is named in the mandate.)' (  [PASS] in_force: Accepted 2026-10-24T15:50:23Z via Witness acceptance page, then PayPal)' (approval of order 5YS322825N0823412; in force at the purchase \(2026-10-24T15:53:36Z\).)' (  [PASS] paypal_approval: The buyer's own PayPal account approved the first payment from this)' (mandate's acceptance page \(order 5YS322825N0823412, 2026-10-24T15:50:23Z\), which saved PayPal)' (for the agent.)' ()' (FINDINGS)' (  [ESTABLISHED] authorization: The purchase is inside the mandate that was in force when it was)' (made. \(sources: mandate_checks.integrity, mandate_checks.amount, mandate_checks.merchant,)' (mandate_checks.in_force, mandate_checks.paypal_approval\))' (  [CONTRADICTED] instruction_compliance: The mandate says 'Whole bean, never ground.' The agent)' (ordered 'Decaf, ground, 340 g', which breaks that instruction even though it fits the spending)' (scope. The decaf choice is consistent with the second instruction about avoiding caffeine.)' (\(sources: mandate.instructions[0], mandate.instructions[1], order.description,)' (dispute.items[0], mandate.scope, finding.authorization\))' (  [ESTABLISHED] listing_match: The ordered item is described as ground, and the buyer says the)' (delivered bag is ground. What was delivered appears to match what was ordered and described.)' (The problem lies in what the agent chose, not in the merchant's fulfilment. \(sources:)' (order.description, dispute.items[0], buyer_statements[0], shipment_tracking[0],)' (finding.fulfilment\))' (  [ESTABLISHED] fulfilment: Shipment 9400111899223857216617 is recorded as delivered. \(sources:)' (shipment_tracking[0]\))' ()' (DECISION: REFUND \(basis: merchant policy; policy: Witness test merchant \(demo policy, set)' (2026-10-18\)\))' (  - Agent instruction violation, not a merchant fulfilment failure: The mandate says 'Whole)' (bean, never ground.' The agent ordered 'Decaf, ground, 340 g', which breaks that instruction)' (even though it fits the spending scope. The decaf choice is consistent with the second)' (instruction about avoiding caffeine.)' (  - The merchant delivered as listed: The ordered item is described as ground, and the buyer)' (says the delivered bag is ground. What was delivered appears to match what was ordered and)' (described. The problem lies in what the agent chose, not in the merchant's fulfilment.)' (  - Merchant policy "Witness test merchant \(demo policy, set 2026-10-18\)" says: refund.)' ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000054 00000 n 
+0000000105 00000 n 
+0000000191 00000 n 
+0000000303 00000 n 
+trailer
+<</Size 6/Root 1 0 R>>
+startxref
+4011
+%%EOF

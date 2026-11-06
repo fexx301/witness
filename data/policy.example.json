@@ -1,0 +1,14 @@
+{
+  "name": "Example merchant (copy to data/policy.json and edit)",
+  "agentInstructionMismatch": "refund",
+  "listingMismatch": "propose_return",
+  "confirmedNonDelivery": "refund",
+  "unauthorizedCharge": "refund",
+  "returnAddress": {
+    "address_line_1": "1 Roastery Way",
+    "admin_area_2": "Portland",
+    "admin_area_1": "OR",
+    "postal_code": "97201",
+    "country_code": "US"
+  }
+}

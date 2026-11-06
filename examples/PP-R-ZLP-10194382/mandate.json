@@ -1,0 +1,19 @@
+{
+  "kind": "witness.mandate.v1",
+  "principal": "sandbox buyer (staging)",
+  "agent": "witness-reference-shopper",
+  "scope": {
+    "max_amount_usd": "40.00",
+    "merchants": [
+      "7ZCSEN3JAJJPG"
+    ],
+    "category": "coffee beans"
+  },
+  "instructions": [
+    "Whole bean, never ground.",
+    "It's for my partner to drink in the evening, and caffeine keeps her up."
+  ],
+  "valid_until": "2026-12-31",
+  "approved_at": "2026-10-25T00:00:00+00:00",
+  "sha256": "ad10ede6a783f1e3decff88441cceff0f48ffdd6774c48e096e3e41e91cab671"
+}
