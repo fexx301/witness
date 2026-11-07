@@ -13,6 +13,9 @@ to buy, did the agent buy what it was told to, and did the merchant deliver what
 apart. It is for merchants whose buyers shop through AI agents. Built for the PayPal AI Hackathon 2026; sandbox
 only, and it refuses to run against live PayPal.
 
+**Built with** PayPal (Disputes, Orders v2 with vault, Payments, Tracking, Agent Toolkit) · Claude · AG Studio by
+AG Grid, for the [investigation desk](#the-investigation-desk): Witness's own widgets, theme and two custom agents.
+
 ![The Witness investigation page for sandbox dispute PP-R-VWF-10194381](assets/desk-investigation.png)
 
 *A sandbox dispute over an agent's purchase. The buyer said the coffee was for evening drinking by someone
@@ -22,12 +25,12 @@ have defended.*
 
 ## For judges: five minutes
 
-1. **Watch the video** (2:22): [YouTube link, added at submission].
-2. **Open the hosted desk**: [witness-desk.duckdns.org](https://witness-desk.duckdns.org/?dispute=PP-R-ZLP-10194382). No login.
+1. **Watch the video** (2:29): [youtu.be/xn7DwPP47fM](https://youtu.be/xn7DwPP47fM).
+2. **Open the hosted desk**, built on AG Studio: [witness-desk.duckdns.org](https://witness-desk.duckdns.org/?dispute=PP-R-ZLP-10194382). No login.
    - `?dispute=PP-R-ZLP-10194382` at the end of the address opens the case followed end to end below. The case
      summary gives Witness's decision and why, the four facts in plain words, and the rules-only tool's decision.
    - In the chat, type: *Investigate PP-R-ZLP-10194382 and tell me whose mistake it was.* AG Studio's lead agent
-     delegates to Witness ("Delegated to Witness"), which runs a fresh dry run (under a minute) and answers that the
+     delegates to Witness's custom agent ("Delegated to Witness"), which runs a fresh dry run (under a minute) and answers that the
      buyer's AI agent made the mistake, not the merchant.
    - Sending to PayPal is off for visitors; the video shows it. The hosted desk caps visitor investigations and chat
      spend per day. If it is out for the day, everything it would show for that case is committed in
