@@ -39,7 +39,7 @@ fi
 sudo chmod 600 "$APP/.env"
 # The service may write only here (see witness.service).
 sudo -u witness mkdir -p "$APP/data/runs" "$APP/data/mandates"
-sudo -u witness bash -c "cd $APP && npm ci && cd desk && npm ci && npm run build"
+sudo -u witness bash -c "cd $APP && npm ci && cd desk && npm ci && NODE_OPTIONS=--max-old-space-size=2560 npm run build"
 
 sudo install -m 644 "$APP/deploy/witness.service" /etc/systemd/system/witness.service
 sed "s/WITNESS_DOMAIN/$DOMAIN/" "$APP/deploy/Caddyfile" | sudo tee /etc/caddy/Caddyfile >/dev/null
