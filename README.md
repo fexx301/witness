@@ -52,6 +52,15 @@ have defended.*
 4. **See where Claude reads and code decides**: [src/decide.ts](src/decide.ts) (what Claude is asked, how its
    citations are checked, the decision rules), [src/baseline.ts](src/baseline.ts) (the rules-only tool) and
    [src/witness.ts](src/witness.ts) (the reviewed, send-once path to PayPal).
+5. **What not to run.** None of these is needed to judge, and each needs keys, costs money or changes sandbox
+   records:
+   - `npx tsx eval/run.ts --witness`: calls Claude on every case. With no model key it does not stop: every
+     case fails with an authentication error, it prints `"correct": 0, "cases": 18, "errors": 18`, and it still
+     writes a report. That is a missing key, not a result.
+   - `npm run witness -- run <id> --execute`, `agent-buy`, `seller-note`, `import-mandate`, and the sandbox
+     `adjudicate` call: they act on a PayPal sandbox account and need its credentials.
+   - Repeated chat or **Investigate** on the hosted desk: each one spends the desk's shared daily budget, which
+     other judges use too. To read the hosted records without spending anything, see [AGENTS.md](AGENTS.md).
 
 ## Results
 
