@@ -32,8 +32,11 @@ describe("docs match the committed artifacts", () => {
     const eighteen = report("eval/results/2026-10-24T09-59-16-096Z-baseline.json");
     const demo = report("eval/results/2026-10-24T10-18-50-673Z-demo.json");
     for (const doc of [readme, agents]) {
-      expect(doc).toContain(`"correct": ${eighteen.summary[BASELINE]!.correct}, "cases": ${eighteen.summary[BASELINE]!.cases}`);
-      expect(doc).toContain(`"correct": ${demo.summary[BASELINE]!.correct}, "cases": ${demo.summary[BASELINE]!.cases}`);
+      // The eval prints its summary as indented JSON, one field per line, so the docs quote the lines.
+      for (const r of [eighteen, demo]) {
+        expect(doc).toContain(`"correct": ${r.summary[BASELINE]!.correct},`);
+        expect(doc).toContain(`"cases": ${r.summary[BASELINE]!.cases},`);
+      }
     }
     const misses = (r: ReturnType<typeof report>) => r.results.filter((x) => x.assessor === BASELINE && !x.correct).map((x) => x.case);
     expect(misses(eighteen)).toEqual(["A4", "A8"]);

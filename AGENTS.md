@@ -8,8 +8,8 @@ Start with "For judges: five minutes" in `README.md`. Everything below runs with
 npm ci                         # about 10 s
 npm run typecheck              # about 1 s, prints nothing after the header
 npm test                       # about 3 s, ends "Tests  74 passed (74)"
-npx tsx eval/run.ts            # about 1 s, rules-only baseline on 18 cases: "correct": 16, "cases": 18
-npx tsx eval/run.ts --demo     # about 1 s, rules-only baseline on 5 demo cases: "correct": 3, "cases": 5
+npx tsx eval/run.ts            # about 1 s, rules-only baseline on 18 cases: summary lines "correct": 16, and "cases": 18,
+npx tsx eval/run.ts --demo     # about 1 s, rules-only baseline on 5 demo cases: "correct": 3, and "cases": 5,
 ```
 
 - Each step exits 0 on success. The eval exits 0 whatever the score: read the JSON summary it prints

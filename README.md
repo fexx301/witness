@@ -64,9 +64,9 @@ it and sends exactly that; until then everything is a dry run, which investigate
    npx tsx eval/run.ts --demo   # rules-only baseline, 5 demo cases: 3 right
    ```
    What each prints: `npm test` ends `Tests  74 passed (74)`. Each eval prints one line per case (the baseline's
-   misses show `WRONG`: A4 and A8 of the 18, D1 and D3 of the 5), then a JSON summary,
-   `"rules-only baseline": { "correct": 16, "cases": 18, ... }` (`"correct": 3, "cases": 5` with `--demo`), then
-   `wrote eval/results/<time>-baseline.json`. That report is new and untracked; `git clean -f eval/results` removes
+   misses show `WRONG`: A4 and A8 of the 18, D1 and D3 of the 5), then an indented JSON summary under
+   `"rules-only baseline"` whose lines include `"correct": 16,` and `"cases": 18,` (`"correct": 3,` and
+   `"cases": 5,` with `--demo`), then `wrote eval/results/<time>-baseline.json` (`-baseline-demo.json` with `--demo`). That report is new and untracked; `git clean -f eval/results` removes
    it. The eval exits 0 whatever the score, so read `correct` and `cases`, not the exit code. After `npm ci`, none
    of these steps needs the network.
 4. **See where Claude reads and code decides**: [src/decide.ts](src/decide.ts) (what Claude is asked, how its
