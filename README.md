@@ -23,6 +23,26 @@ caffeine keeps up; the agent bought regular. Witness finds the purchase authoriz
 the order delivered as listed, and recommends a refund under the merchant's policy. A rules-only tool would
 have defended.*
 
+## How it works
+
+```mermaid
+flowchart LR
+  P["PayPal sandbox: dispute, order, capture, tracking"] --> F["Code establishes facts: mandate in force at purchase, amount, merchant, delivery"]
+  M["Buyer's mandate, bound to the order by SHA-256"] --> F
+  F --> C["Claude compares instructions, order and listing; every conclusion cites a fact"]
+  C --> D["Code checks citations and decides by PayPal's reason and the merchant's policy"]
+  D --> R["A person reviews in the desk"]
+  R --> S["Execute sends exactly the reviewed response to PayPal, once"]
+```
+
+In text: Witness reads the dispute and the purchase records from PayPal, and the buyer's mandate (the
+instructions and limits the buyer gave their agent). Code establishes what can be established: whether the
+mandate allowed this purchase when it was made, and whether delivery is recorded. Claude compares what the buyer
+asked for with what the agent bought and what the listing promised, citing the facts it relies on. Code checks
+those citations and picks the response by the reason PayPal records and the merchant's policy. A person reviews
+it and sends exactly that; until then everything is a dry run, which investigates and sends nothing. Details:
+[How Witness investigates a dispute](#how-witness-investigates-a-dispute).
+
 ## For judges: five minutes
 
 1. **Watch the video** (2:29): [youtu.be/xn7DwPP47fM](https://youtu.be/xn7DwPP47fM).
