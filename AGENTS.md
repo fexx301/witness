@@ -7,7 +7,7 @@ Start with "For judges: five minutes" in `README.md`. Everything below runs with
 ```bash
 npm ci                         # about 10 s
 npm run typecheck              # about 1 s, prints nothing after the header
-npm test                       # about 3 s, ends "Tests  68 passed (68)"
+npm test                       # about 3 s, ends "Tests  74 passed (74)"
 npx tsx eval/run.ts            # about 1 s, rules-only baseline on 18 cases: "correct": 16, "cases": 18
 npx tsx eval/run.ts --demo     # about 1 s, rules-only baseline on 5 demo cases: "correct": 3, "cases": 5
 ```
@@ -52,7 +52,7 @@ The event's five criteria, and where this repository gives evidence for each:
 
 | Criterion | Evidence |
 |---|---|
-| Technological Implementation | "PayPal APIs Witness uses" and "AI and other tools Witness uses" in `README.md`, with code links; `src/paypal/`, `src/decide.ts`; 68 tests (`test/witness.test.ts`); CI (`.github/workflows/ci.yml`); a sandbox case sent and resolved (`examples/PP-R-ZLP-10194382/`) |
+| Technological Implementation | "PayPal APIs Witness uses" and "AI and other tools Witness uses" in `README.md`, with code links; `src/paypal/`, `src/decide.ts`; 74 tests (`test/`); CI (`.github/workflows/ci.yml`); a sandbox case sent and resolved (`examples/PP-R-ZLP-10194382/`) |
 | Design | "The investigation desk" in `README.md`, `assets/desk-investigation.png`, `assets/desk-queue.png`, the hosted desk and its JSON API above, `desk/src/` |
 | Potential Impact | Who it is for and the problem, in the opening of `README.md`; "Why a merchant would refund the agent's mistake", stated as a hypothesis; "Results" and its limits |
 | Innovation/Idea | "How it works" and "How Witness investigates a dispute" in `README.md`; the last point of "What Witness does not claim" names existing approaches and what Witness adds |
