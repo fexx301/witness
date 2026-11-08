@@ -111,7 +111,7 @@ the quality of the explanations or evidence, successful PayPal execution, or how
 - **Not covered by the eval.** A missing or unlinked PayPal approval of the mandate (the eval always supplies a
   linked one; [the tests](test/witness.test.ts) cover the other cases), the chargeback stage, PayPal's own evidence
   requests, real buyer text, and repeated runs.
-- **Fresh runs** need model credentials and cost API usage (about $0.05 a case on Opus):
+- **Fresh runs** need model credentials and cost API usage (about $0.05 a case on Opus, the estimate in [eval/run.ts](eval/run.ts)):
   `npx tsx eval/run.ts --witness` and `npx tsx eval/run.ts --witness --demo`.
 
 ## Where each claim is checked
