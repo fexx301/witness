@@ -185,6 +185,19 @@ on the toolkit itself, in sandbox mode.
 | The reference shopping agent buys with no buyer present | Orders v2 with `vault_id`: `POST /v2/checkout/orders`, `POST …/capture`, `POST …/track`; Tracking: `PUT /v1/shipping/trackers/{id}` | [src/agentBuy.ts](src/agentBuy.ts) |
 | The desk chat's PayPal records agent | PayPal Agent Toolkit (`@paypal/agent-toolkit`), read-only: list and get disputes, get an order, get tracking, list transactions, get a refund | [src/paypalRecords.ts](src/paypalRecords.ts) |
 
+## AI and other tools Witness uses
+
+| Tool | What it does in Witness | Code |
+|---|---|---|
+| Claude Opus 5.5 (`claude-opus-5-5` with `ANTHROPIC_API_KEY`, or `anthropic/claude-opus-5.5` through OpenRouter; `WITNESS_MODEL` overrides) | The investigation: reads the buyer's words, compares the mandate's instructions with the order and the listing, cites a supplied fact for every conclusion, and writes the notes for PayPal and the message to the buyer | [src/decide.ts](src/decide.ts) |
+| Claude Sonnet 5.5 (`WITNESS_DESK_MODEL` overrides) | The desk chat: AG Studio's built-in agents and Witness's two custom agents | [src/studioLlm.ts](src/studioLlm.ts), [desk/src/llmAdapter.ts](desk/src/llmAdapter.ts) |
+| AG Studio (AG Grid) | The investigation desk: widgets, theme, and the lead agent that delegates to the Witness and PayPal records agents | [desk/src/](desk/src) |
+| PayPal Agent Toolkit | Read-only PayPal lookups for the PayPal records agent | [src/paypalRecords.ts](src/paypalRecords.ts) |
+
+Code, not a model, checks every citation, the mandate and the delivery, and picks the action. Also used:
+TypeScript on Node 22, zod (validation), vitest (tests), Vite (desk build), and Caddy on AWS Lightsail (hosting,
+[deploy/README.md](deploy/README.md)).
+
 ## What Witness does not claim
 
 - **The eval measures decisions, not outcomes.** See [Results](#results): synthetic cases, one run each, matching the
