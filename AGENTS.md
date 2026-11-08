@@ -1,12 +1,52 @@
 # For AI agents reviewing this repository
 
-Start with "For judges: five minutes" in `README.md`. Everything below runs with no keys, on Node 22:
+Start with "For judges: five minutes" in `README.md`. Everything below runs with no keys, on Node 22.
+
+## Quick check (under a minute, no network after `npm ci`)
 
 ```bash
-npm ci && npm run typecheck && npm test
-npx tsx eval/run.ts          # rules-only baseline, 18 eval cases: 16 right
-npx tsx eval/run.ts --demo   # rules-only baseline, 5 demo cases: 3 right
+npm ci                         # about 10 s
+npm run typecheck              # about 1 s, prints nothing after the header
+npm test                       # about 3 s, ends "Tests  68 passed (68)"
+npx tsx eval/run.ts            # about 1 s, rules-only baseline on 18 cases: "correct": 16, "cases": 18
+npx tsx eval/run.ts --demo     # about 1 s, rules-only baseline on 5 demo cases: "correct": 3, "cases": 5
 ```
+
+- Each step exits 0 on success. The eval exits 0 whatever the score: read the JSON summary it prints
+  (`correct`, `cases`, `errors`), not the exit code.
+- Each eval run writes a new, untracked report to `eval/results/<time>-baseline*.json` (machine-readable: a
+  `summary` per assessor and one `results` entry per case). `git clean -f eval/results` removes them.
+- The committed reports behind every number in "Results" are in `eval/results/`; the table links each one.
+
+## Do not run
+
+`npx tsx eval/run.ts --witness` (calls Claude and costs money; with no key it prints 0 of 18 with 18
+authentication errors, which is a missing key, not a result), `npm run witness -- run <id> --execute`,
+`agent-buy`, `seller-note`, `import-mandate`, the sandbox `adjudicate` call (all act on a PayPal sandbox
+account), and repeated chat or POST `/api/investigate` on the hosted desk (they spend a daily budget that
+human judges share).
+
+## The hosted desk, read-only, as JSON
+
+The hosted desk's API answers visitors' reads with no key and spends nothing. Account IDs are replaced for
+visitors.
+
+```bash
+curl -s https://witness-desk.duckdns.org/api/disputes
+# {"rows":[...]}: one row per sandbox dispute with disputeId, reason, paypalStatus, outcome,
+# witnessDecision, baselineDecision, sentToPayPal. PP-R-ZLP-10194382: witnessDecision "refund",
+# paypalStatus "RESOLVED", outcome "RESOLVED_BUYER_FAVOUR".
+
+curl -s "https://witness-desk.duckdns.org/api/investigation?id=PP-R-ZLP-10194382"
+# {"reviewed": {...}, "mandate": {...}, "baseline": {...}, "executed": ..., "lastSent": ...}
+# reviewed.decision.action is "refund", reviewed.decision.basis "merchant_policy",
+# reviewed.model "anthropic/claude-opus-5.5"; reviewed.findings, .assessment and .steps hold the reasoning.
+```
+
+`reviewed` is the latest investigation of that dispute: a visitor's fresh run replaces it, so its wording can
+change. The committed copy that a person reviewed and sent is `examples/PP-R-ZLP-10194382/1-investigation.json`.
+
+## Where to find things
 
 - Results, with model, dates, baseline versions and what they measure: "Results" in `README.md`.
 - Each claim mapped to its code and tests: "Where each claim is checked" in `README.md`.
