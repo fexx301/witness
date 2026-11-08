@@ -45,7 +45,7 @@ it and sends exactly that; until then everything is a dry run, which investigate
 
 ## For judges: five minutes
 
-1. **Watch the video** (2:29): [youtu.be/xn7DwPP47fM](https://youtu.be/xn7DwPP47fM).
+1. **Watch the video** (2:29): [youtu.be/xn7DwPP47fM](https://youtu.be/xn7DwPP47fM); [transcript](docs/video-transcript.md).
 2. **Open the hosted desk**, built on AG Studio: [witness-desk.duckdns.org](https://witness-desk.duckdns.org/?dispute=PP-R-ZLP-10194382). No login.
    - `?dispute=PP-R-ZLP-10194382` at the end of the address opens the case followed end to end below. The case
      summary gives Witness's decision and why, the four facts in plain words, and the rules-only tool's decision.

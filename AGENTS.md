@@ -48,6 +48,7 @@ change. The committed copy that a person reviewed and sent is `examples/PP-R-ZLP
 
 ## Where to find things
 
+- The demo video as text (narration and on-screen text, by chapter): `docs/video-transcript.md`.
 - Results, with model, dates, baseline versions and what they measure: "Results" in `README.md`.
 - Each claim mapped to its code and tests: "Where each claim is checked" in `README.md`.
 - One sandbox dispute end to end, as committed records: `examples/PP-R-ZLP-10194382/`.
