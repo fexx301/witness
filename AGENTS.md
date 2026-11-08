@@ -46,6 +46,18 @@ curl -s "https://witness-desk.duckdns.org/api/investigation?id=PP-R-ZLP-10194382
 `reviewed` is the latest investigation of that dispute: a visitor's fresh run replaces it, so its wording can
 change. The committed copy that a person reviewed and sent is `examples/PP-R-ZLP-10194382/1-investigation.json`.
 
+## Evidence for each judging criterion
+
+The event's five criteria, and where this repository gives evidence for each:
+
+| Criterion | Evidence |
+|---|---|
+| Technological Implementation | "PayPal APIs Witness uses" and "AI and other tools Witness uses" in `README.md`, with code links; `src/paypal/`, `src/decide.ts`; 68 tests (`test/witness.test.ts`); CI (`.github/workflows/ci.yml`); a sandbox case sent and resolved (`examples/PP-R-ZLP-10194382/`) |
+| Design | "The investigation desk" in `README.md`, `assets/desk-investigation.png`, `assets/desk-queue.png`, the hosted desk and its JSON API above, `desk/src/` |
+| Potential Impact | Who it is for and the problem, in the opening of `README.md`; "Why a merchant would refund the agent's mistake", stated as a hypothesis; "Results" and its limits |
+| Innovation/Idea | "How it works" and "How Witness investigates a dispute" in `README.md`; the last point of "What Witness does not claim" names existing approaches and what Witness adds |
+| Presentation | The video and `docs/video-transcript.md`; "For judges: five minutes"; "One case, end to end" |
+
 ## Where to find things
 
 - The demo video as text (narration and on-screen text, by chapter): `docs/video-transcript.md`.
