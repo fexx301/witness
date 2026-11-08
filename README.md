@@ -36,13 +36,19 @@ have defended.*
      spend per day. If it is out for the day, everything it would show for that case is committed in
      [examples/PP-R-ZLP-10194382](examples/PP-R-ZLP-10194382): the mandate, the reviewed investigation, the
      evidence pack as a PDF, what was sent, and PayPal's record of the dispute afterwards.
-3. **Run the checks with no keys** (Node 22, about a minute):
+3. **Run the checks with no keys** (Node 22; under a minute in all, `npm ci` about 10 s, each other step 1–3 s):
    ```bash
    git clone https://github.com/fexx301/witness && cd witness && npm ci
    npm run typecheck && npm test
    npx tsx eval/run.ts          # rules-only baseline, 18 eval cases: 16 right
    npx tsx eval/run.ts --demo   # rules-only baseline, 5 demo cases: 3 right
    ```
+   What each prints: `npm test` ends `Tests  68 passed (68)`. Each eval prints one line per case (the baseline's
+   misses show `WRONG`: A4 and A8 of the 18, D1 and D3 of the 5), then a JSON summary,
+   `"rules-only baseline": { "correct": 16, "cases": 18, ... }` (`"correct": 3, "cases": 5` with `--demo`), then
+   `wrote eval/results/<time>-baseline.json`. That report is new and untracked; `git clean -f eval/results` removes
+   it. The eval exits 0 whatever the score, so read `correct` and `cases`, not the exit code. After `npm ci`, none
+   of these steps needs the network.
 4. **See where Claude reads and code decides**: [src/decide.ts](src/decide.ts) (what Claude is asked, how its
    citations are checked, the decision rules), [src/baseline.ts](src/baseline.ts) (the rules-only tool) and
    [src/witness.ts](src/witness.ts) (the reviewed, send-once path to PayPal).
