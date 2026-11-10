@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ASK_WHAT_ARRIVED, executeSteps, planSteps } from "../src/act.js";
 import { checkInstructions, loadCatalogue, RulesAssessor } from "../src/baseline.js";
@@ -976,5 +978,17 @@ describe("textPdf", () => {
     const offsets = pdf.match(/^\d{10} 00000 n $/gm)!.map((entry) => Number(entry.slice(0, 10)));
     offsets.forEach((at, i) => expect(pdf.slice(at).startsWith(`${i + 1} 0 obj\n`)).toBe(true));
     expect(Number(/startxref\n(\d+)/.exec(pdf)![1])).toBe(pdf.indexOf("xref\n"));
+  });
+});
+
+describe("eval/run.ts", () => {
+  it("stops --witness without a model key: exit 1, no report", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "witness-run-")); // no .env here, and results would land here
+    const env = { ...process.env, ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: "", OPENROUTER_API_KEY: "" };
+    const tsx = fileURLToPath(new URL("../node_modules/.bin/tsx", import.meta.url));
+    const run = spawnSync(tsx, [fileURLToPath(new URL("../eval/run.ts", import.meta.url)), "--witness"], { cwd, env, encoding: "utf8" });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("needs ANTHROPIC_API_KEY or OPENROUTER_API_KEY");
+    expect(readdirSync(cwd)).toEqual([]);
   });
 });

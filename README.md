@@ -63,20 +63,19 @@ it and sends exactly that; until then everything is a dry run, which investigate
    npx tsx eval/run.ts          # rules-only baseline, 18 eval cases: 16 right
    npx tsx eval/run.ts --demo   # rules-only baseline, 5 demo cases: 3 right
    ```
-   What each prints: `npm test` ends `Tests  74 passed (74)`. Each eval prints one line per case (the baseline's
+   What each prints: `npm test` ends `Tests  75 passed (75)`. Each eval prints one line per case (the baseline's
    misses show `WRONG`: A4 and A8 of the 18, D1 and D3 of the 5), then an indented JSON summary under
    `"rules-only baseline"` whose lines include `"correct": 16,` and `"cases": 18,` (`"correct": 3,` and
    `"cases": 5,` with `--demo`), then `wrote eval/results/<time>-baseline.json` (`-baseline-demo.json` with `--demo`). That report is new and untracked; `git clean -f eval/results` removes
-   it. The eval exits 0 whatever the score, so read `correct` and `cases`, not the exit code. After `npm ci`, none
+   it. The eval exits 0 whatever the score (1 only if a case errors), so read `correct` and `cases`. After `npm ci`, none
    of these steps needs the network.
 4. **See where Claude reads and code decides**: [src/decide.ts](src/decide.ts) (what Claude is asked, how its
    citations are checked, the decision rules), [src/baseline.ts](src/baseline.ts) (the rules-only tool) and
    [src/witness.ts](src/witness.ts) (the reviewed, send-once path to PayPal).
 5. **What not to run.** None of these is needed to judge, and each needs keys, costs money or changes sandbox
    records:
-   - `npx tsx eval/run.ts --witness`: calls Claude on every case. With no model key it does not stop: every
-     case fails with an authentication error, it prints `"correct": 0, "cases": 18, "errors": 18`, and it still
-     writes a report. That is a missing key, not a result.
+   - `npx tsx eval/run.ts --witness`: calls Claude on every case and costs money. With no model key it stops
+     at once, exits 1 and writes nothing.
    - `npm run witness -- run <id> --execute`, `agent-buy`, `seller-note`, `import-mandate`, and the sandbox
      `adjudicate` call: they act on a PayPal sandbox account and need its credentials.
    - Repeated chat or **Investigate** on the hosted desk: each one spends the desk's shared daily budget, which

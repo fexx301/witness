@@ -1,5 +1,6 @@
 // Runs the predeclared A11 comparison. The rules-only baseline is free; Witness calls Claude once per case,
-// so it runs only with --witness. Results go to eval/results/<time>.json.
+// so it runs only with --witness and a key. Results go to eval/results/<time>.json. Exits 1 only if a case
+// errored, never for a wrong decision.
 //   npx tsx eval/run.ts              baseline only
 //   npx tsx eval/run.ts --witness    baseline and Witness (about $0.05 a case on Opus)
 //   add --demo to run the Act 1 set (eval/demo-cases.ts) instead of the 18 cases
@@ -16,6 +17,11 @@ import { caseStore, runCase, type CaseResult } from "./harness.js";
 // The baseline needs no keys, so a fresh clone can run it.
 if (existsSync(".env")) process.loadEnvFile(".env");
 const withWitness = process.argv.includes("--witness");
+// Without a key every Witness case would fail on authentication and the report would read as a 0 score.
+if (withWitness && !process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN && !process.env.OPENROUTER_API_KEY) {
+  console.error("--witness needs ANTHROPIC_API_KEY or OPENROUTER_API_KEY; nothing was run or written.");
+  process.exit(1);
+}
 const demo = process.argv.includes("--demo");
 const cases = demo ? DEMO_CASES : CASES;
 const assessors: Assessor[] = [new RulesAssessor(), ...(withWitness ? [new ClaudeAssessor()] : [])];
@@ -52,3 +58,5 @@ mkdirSync("eval/results", { recursive: true });
 const file = `eval/results/${new Date().toISOString().replace(/[:.]/g, "-")}${withWitness ? "" : "-baseline"}${demo ? "-demo" : ""}.json`;
 writeFileSync(file, JSON.stringify({ ranAt: new Date().toISOString(), summary, results }, null, 2) + "\n");
 console.log(`wrote ${file}`);
+// A wrong decision is a result, not a failure; only a case that crashed fails the run.
+if (results.some((r) => r.error)) process.exitCode = 1;
