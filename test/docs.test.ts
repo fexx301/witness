@@ -31,7 +31,8 @@ describe("docs match the committed artifacts", () => {
   it("the documented baseline output matches the current baseline reports", () => {
     const eighteen = report("eval/results/2026-10-24T09-59-16-096Z-baseline.json");
     const demo = report("eval/results/2026-10-24T10-18-50-673Z-demo.json");
-    for (const doc of [readme, agents]) {
+    {
+      const doc = agents;
       // The eval prints its summary as indented JSON, one field per line, so the docs quote the lines.
       for (const r of [eighteen, demo]) {
         expect(doc).toContain(`"correct": ${r.summary[BASELINE]!.correct},`);
@@ -41,12 +42,13 @@ describe("docs match the committed artifacts", () => {
     const misses = (r: ReturnType<typeof report>) => r.results.filter((x) => x.assessor === BASELINE && !x.correct).map((x) => x.case);
     expect(misses(eighteen)).toEqual(["A4", "A8"]);
     expect(misses(demo)).toEqual(["D1", "D3"]);
-    expect(readme).toContain("A4 and A8 of the 18, D1 and D3 of the 5");
+    expect(agents).toContain("A4 and A8 of the 18, D1 and D3\n  of the 5");
   });
 
   it("every test name the README cites exists", () => {
     const tests = read("test/witness.test.ts");
-    const section = readme.slice(readme.indexOf("## Where each claim is checked"), readme.indexOf("## One case, end to end"));
+    const from = readme.indexOf("## Where each claim is checked");
+    const section = readme.slice(from, readme.indexOf("\n## ", from + 1));
     const names = [...section.matchAll(/"([^"]{20,})"/g)].map((m) => m[1]);
     expect(names.length).toBe(7);
     for (const name of names) expect(tests, name).toContain(name);

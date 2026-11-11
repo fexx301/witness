@@ -12,6 +12,8 @@ npx tsx eval/run.ts            # about 1 s, rules-only baseline on 18 cases: sum
 npx tsx eval/run.ts --demo     # about 1 s, rules-only baseline on 5 demo cases: "correct": 3, and "cases": 5,
 ```
 
+- Each eval prints one line per case first; the baseline's misses show `WRONG`: A4 and A8 of the 18, D1 and D3
+  of the 5.
 - Each step exits 0 on success. The eval exits 0 whatever the score, and 1 only if a case errors: read the
   JSON summary it prints (`correct`, `cases`, `errors`) for the result.
 - Each eval run writes a new, untracked report to `eval/results/<time>-baseline*.json` (machine-readable: a

@@ -23,6 +23,24 @@ caffeine keeps up; the agent bought regular. Witness finds the purchase authoriz
 the order delivered as listed, and recommends a refund under the merchant's policy. A rules-only tool would
 have defended.*
 
+**In 30 seconds**
+
+- **The problem:** two buyers send the same complaint, but in one the merchant erred and in the other the
+  buyer's own AI agent did. A rules-only tool answers both the same way; Witness asks whose mistake it was.
+- **It works end to end:** a sandbox dispute was investigated, reviewed, sent to PayPal and resolved
+  ([One case, end to end](#one-case-end-to-end)).
+- **Measured:** 18 of 18 synthetic cases decided as labelled, against 16 of 18 for a rules-only baseline
+  ([Results](#results)).
+- **Checked:** 75 tests and CI; Claude cites a fact for every conclusion and code checks the citations.
+- **See it:** the [2:29 video](https://youtu.be/xn7DwPP47fM) and the [hosted desk](https://witness-desk.duckdns.org/?dispute=PP-R-ZLP-10194382), no login.
+
+**Contents:** [How it works](#how-it-works) · [For judges](#for-judges-five-minutes) ·
+[One case, end to end](#one-case-end-to-end) · [Results](#results) ·
+[Where each claim is checked](#where-each-claim-is-checked). Reference: [How Witness investigates a
+dispute](#how-witness-investigates-a-dispute) · [PayPal APIs](#paypal-apis-witness-uses) ·
+[AI and other tools](#ai-and-other-tools-witness-uses) · [What Witness does not claim](#what-witness-does-not-claim) ·
+[Run it](#run-it) · [The investigation desk](#the-investigation-desk)
+
 ## How it works
 
 ```mermaid
@@ -63,23 +81,42 @@ it and sends exactly that; until then everything is a dry run, which investigate
    npx tsx eval/run.ts          # rules-only baseline, 18 eval cases: 16 right
    npx tsx eval/run.ts --demo   # rules-only baseline, 5 demo cases: 3 right
    ```
-   What each prints: `npm test` ends `Tests  75 passed (75)`. Each eval prints one line per case (the baseline's
-   misses show `WRONG`: A4 and A8 of the 18, D1 and D3 of the 5), then an indented JSON summary under
-   `"rules-only baseline"` whose lines include `"correct": 16,` and `"cases": 18,` (`"correct": 3,` and
-   `"cases": 5,` with `--demo`), then `wrote eval/results/<time>-baseline.json` (`-baseline-demo.json` with `--demo`). That report is new and untracked; `git clean -f eval/results` removes
-   it. The eval exits 0 whatever the score (1 only if a case errors), so read `correct` and `cases`. After `npm ci`, none
-   of these steps needs the network.
+   `npm test` ends `Tests  75 passed (75)`. Each eval prints a line per case and a JSON summary; read `correct`
+   and `cases` in it. No network needed after `npm ci`. Exact expected output, exit codes and cleanup:
+   [AGENTS.md](AGENTS.md).
 4. **See where Claude reads and code decides**: [src/decide.ts](src/decide.ts) (what Claude is asked, how its
    citations are checked, the decision rules), [src/baseline.ts](src/baseline.ts) (the rules-only tool) and
    [src/witness.ts](src/witness.ts) (the reviewed, send-once path to PayPal).
-5. **What not to run.** None of these is needed to judge, and each needs keys, costs money or changes sandbox
-   records:
-   - `npx tsx eval/run.ts --witness`: calls Claude on every case and costs money. With no model key it stops
-     at once, exits 1 and writes nothing.
-   - `npm run witness -- run <id> --execute`, `agent-buy`, `seller-note`, `import-mandate`, and the sandbox
-     `adjudicate` call: they act on a PayPal sandbox account and need its credentials.
-   - Repeated chat or **Investigate** on the hosted desk: each one spends the desk's shared daily budget, which
-     other judges use too. To read the hosted records without spending anything, see [AGENTS.md](AGENTS.md).
+5. **What not to run:** `eval/run.ts --witness`, `--execute`, `agent-buy`, `seller-note`, `import-mandate` and
+   `adjudicate` need keys, cost money or change sandbox records; repeated chat or **Investigate** on the hosted
+   desk spends a daily budget other judges share. The full list, and a read-only JSON API for the hosted
+   records, are in [AGENTS.md](AGENTS.md).
+
+## One case, end to end
+
+PP-R-ZLP-10194382, every step in [examples/PP-R-ZLP-10194382](examples/PP-R-ZLP-10194382):
+
+1. **Instructions.** The buyer's [mandate](examples/PP-R-ZLP-10194382/mandate.json) lets the agent buy coffee beans up
+   to $40, "Whole bean, never ground." The buyer accepted it on Witness's page and approved it at PayPal (order
+   5YS322825N0823412).
+2. **Purchase.** The agent bought "Decaf, ground, 340 g" for $16.00, and the merchant's tracking says delivered.
+3. **Dispute.** The buyer filed not as described: "Wrong coffee. I told my shopping assistant to buy whole bean
+   coffee only, never ground, and this bag is ground."
+4. **Findings** ([the investigation](examples/PP-R-ZLP-10194382/1-investigation.json)). Code: the purchase was
+   authorized and delivered. Claude, citing the mandate and the order: the agent broke the "never ground"
+   instruction, and the merchant delivered what was ordered and listed.
+5. **Policy.** The merchant's policy for an agent instruction mismatch says refund.
+6. **Action.** A person reviewed it and sent "accept claim" from the desk on 2026-11-05
+   ([what was sent](examples/PP-R-ZLP-10194382/2-sent-to-paypal.json)). After the merchant accepted the claim,
+   PayPal resolved the sandbox dispute without the sandbox adjudication call: buyer's favour, seller issued refund
+   ([PayPal's record](examples/PP-R-ZLP-10194382/3-paypal-dispute-after.json)).
+
+**Why a merchant would refund the agent's mistake.** Witness doesn't decide that; the merchant's policy does, and
+it can say refund, offer a return or send to review. A merchant might choose refund for goodwill and to keep the
+customer, since a $16 bag costs less than losing the buyer or fighting the dispute. That is a hypothesis: Witness
+has no merchant interviews or measured savings. Finding the agent at fault does not move liability to the agent's
+provider or recover money from it. What it gives the merchant is a documented reason for the choice, and a defence
+in the cases where the agent and the merchant both did what they should.
 
 ## Results
 
@@ -122,31 +159,7 @@ the quality of the explanations or evidence, successful PayPal execution, or how
 | The desk sends exactly the reviewed investigation, once | `executeReviewed` in [src/witness.ts](src/witness.ts) | Tests "executes exactly the reviewed dry run, once, with no new assessment", "refuses when the records changed, when PayPal no longer offers the reviewed response, and a second send at the same stage" |
 | The PayPal integration works in the sandbox | [src/paypal/](src/paypal) | [examples/PP-R-ZLP-10194382](examples/PP-R-ZLP-10194382): the send and PayPal's record of the dispute afterwards |
 
-## One case, end to end
-
-PP-R-ZLP-10194382, every step in [examples/PP-R-ZLP-10194382](examples/PP-R-ZLP-10194382):
-
-1. **Instructions.** The buyer's [mandate](examples/PP-R-ZLP-10194382/mandate.json) lets the agent buy coffee beans up
-   to $40, "Whole bean, never ground." The buyer accepted it on Witness's page and approved it at PayPal (order
-   5YS322825N0823412).
-2. **Purchase.** The agent bought "Decaf, ground, 340 g" for $16.00, and the merchant's tracking says delivered.
-3. **Dispute.** The buyer filed not as described: "Wrong coffee. I told my shopping assistant to buy whole bean
-   coffee only, never ground, and this bag is ground."
-4. **Findings** ([the investigation](examples/PP-R-ZLP-10194382/1-investigation.json)). Code: the purchase was
-   authorized and delivered. Claude, citing the mandate and the order: the agent broke the "never ground"
-   instruction, and the merchant delivered what was ordered and listed.
-5. **Policy.** The merchant's policy for an agent instruction mismatch says refund.
-6. **Action.** A person reviewed it and sent "accept claim" from the desk on 2026-11-05
-   ([what was sent](examples/PP-R-ZLP-10194382/2-sent-to-paypal.json)). After the merchant accepted the claim,
-   PayPal resolved the sandbox dispute without the sandbox adjudication call: buyer's favour, seller issued refund
-   ([PayPal's record](examples/PP-R-ZLP-10194382/3-paypal-dispute-after.json)).
-
-**Why a merchant would refund the agent's mistake.** Witness doesn't decide that; the merchant's policy does, and
-it can say refund, offer a return or send to review. A merchant might choose refund for goodwill and to keep the
-customer, since a $16 bag costs less than losing the buyer or fighting the dispute. That is a hypothesis: Witness
-has no merchant interviews or measured savings. Finding the agent at fault does not move liability to the agent's
-provider or recover money from it. What it gives the merchant is a documented reason for the choice, and a defence
-in the cases where the agent and the merchant both did what they should.
+*Everything below is reference: how it works in detail, what it uses, and how to run it.*
 
 ## How Witness investigates a dispute
 
