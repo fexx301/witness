@@ -243,6 +243,12 @@ TypeScript on Node 22, zod (validation), vitest (tests), Vite (desk build), and 
 - **"A person approves exactly what is sent" is true of the desk**, where Execute sends a dry run the person
   reviewed. The CLI's `run <dispute-id> --execute` investigates and sends in one step: it makes a fresh
   assessment, and a dry run made earlier is not what it sends.
+- **`npm audit` reports warnings, and they are unchanged on purpose.** On 2026-11-11 it listed 14 (13 high, 1
+  moderate). Thirteen come from inside PayPal's Agent Toolkit (`@paypal/agent-toolkit` and its dependencies such
+  as `@langchain/core`, `ai`, `zod` 3, `mathjs`, `axios`); `npm audit` can only clear them by moving the toolkit to
+  an older major version, which could break the PayPal records agent. The other is `vite` under `vitest`, used only
+  to run the tests. The toolkit runs read-only, on the sandbox, behind the desk's daily budget. The desk's own
+  dependencies (`desk/`) report none.
 - Generic AI dispute response already exists (e.g. Chargeflow for PayPal), and signed agent mandates are
   the idea behind AP2. Witness's contribution is the investigation: tying an agent's mandate, the purchase
   and the fulfilment record together for one specific dispute, and knowing when it cannot justify acting.
